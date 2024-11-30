@@ -7,7 +7,7 @@ pub(crate) struct FileHash {
 impl FileHash {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         Ok(FileHash {
-            path: path.as_ref().to_owned(),
+            path: path.as_ref().canonicalize()?,
         })
     }
 }
@@ -112,16 +112,17 @@ mod tests {
         check_testfile(TestFileContent::MultiLine);
     }
 
-    // #[test]
-    // fn create_FileHash_from_non_existent() {
-    //     let fh = FileHash::new(Path::new("/oiweisliejfliajseflij"));
-    //     assert!(fh.is_err());
-    // }
+    #[test]
+    fn create_filehash_from_non_existent() {
+        let filehash = FileHash::new(Path::new("/oiweisliejfliajseflij"));
+        assert!(filehash.is_err());
+    }
 
-    // #[test]
-    // fn create_FileHash_from_existent() {
-    //     let testfile = init_file();
-    //     let fh = FileHash::new(&testfile.path);
-    //     assert!(fh.is_ok());
-    // }
+    #[test]
+    fn create_filehash_from_existent() {
+        let testfile = get_testfile(TestFileContent::SingleLine);
+        let filehash =
+            FileHash::new(&testfile.file.path()).expect("Can't create FileHash from existing file");
+        assert_eq!(testfile.file.path(), filehash.path);
+    }
 }
