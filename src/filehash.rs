@@ -1,14 +1,33 @@
-use std::path::{Path, PathBuf};
+/// Test list:
+/// - TestFile creation
+/// - FileHash creation
+/// - Hashing files
+/// - Other filetypes (links, char device, block dev, socket, pipe)
+///
+use std::{
+    fs,
+    path::{Path, PathBuf},
+};
+
+use sha2::{Digest, Sha256};
 
 pub(crate) struct FileHash {
     path: PathBuf,
+    hash: Option<String>,
 }
 
 impl FileHash {
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
+    pub(crate) fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         Ok(FileHash {
             path: path.as_ref().canonicalize()?,
+            hash: Default::default(),
         })
+    }
+    pub(crate) fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+        let data = fs::read(&self.path)?;
+        let hash = Sha256::digest(data);
+        self.hash = Some(hex::encode(hash));
+        Ok(())
     }
 }
 
@@ -97,6 +116,15 @@ mod tests {
         assert_eq!(test_vector.hash, testfile.test_vector.hash);
     }
 
+    fn check_compute_hash(content: TestFileContent) {
+        let testfile = get_testfile(content);
+        let mut filehash =
+            FileHash::new(&testfile.file.path()).expect("Can't create FileHash from existing file");
+        assert!(filehash.hash.is_none());
+        filehash.compute_hash();
+        assert_eq!(testfile.test_vector.hash, filehash.hash.unwrap());
+    }
+
     #[test]
     fn get_testfile_empty() {
         check_testfile(TestFileContent::Empty);
@@ -124,5 +152,20 @@ mod tests {
         let filehash =
             FileHash::new(&testfile.file.path()).expect("Can't create FileHash from existing file");
         assert_eq!(testfile.file.path(), filehash.path);
+    }
+
+    #[test]
+    fn compute_hash_empty() {
+        check_compute_hash(TestFileContent::Empty);
+    }
+
+    #[test]
+    fn compute_hash_singleline() {
+        check_compute_hash(TestFileContent::SingleLine);
+    }
+
+    #[test]
+    fn compute_hash_multiline() {
+        check_compute_hash(TestFileContent::MultiLine);
     }
 }
