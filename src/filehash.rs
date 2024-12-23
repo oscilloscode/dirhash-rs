@@ -8,6 +8,8 @@ use std::{
 
 use sha2::{Digest, Sha256};
 
+use crate::filelisthash::PathHashProvider;
+
 pub struct FileHash {
     path: PathBuf,
     hash: Option<[u8; 32]>,
@@ -20,11 +22,22 @@ impl FileHash {
             hash: Default::default(),
         })
     }
-    pub fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+}
+
+impl PathHashProvider for FileHash {
+    fn compute_hash(&mut self) -> Result<(), std::io::Error> {
         let data = fs::read(&self.path)?;
         let hash = Sha256::digest(data);
         self.hash = Some(hash.into());
         Ok(())
+    }
+
+    fn hash(&self) -> Option<&[u8; 32]> {
+        self.hash.as_ref()
+    }
+
+    fn path(&self) -> &Path {
+        &self.path
     }
 }
 
@@ -111,9 +124,9 @@ mod tests {
         let testfile = get_testfile(content);
         let mut filehash =
             FileHash::new(testfile.file.path()).expect("Can't create FileHash from existing file");
-        assert!(filehash.hash.is_none());
+        assert!(filehash.hash().is_none());
         assert!(filehash.compute_hash().is_ok());
-        assert_eq!(testfile.test_vector.hash, filehash.hash.unwrap());
+        assert_eq!(testfile.test_vector.hash, *filehash.hash().unwrap());
     }
 
     #[test]
@@ -142,7 +155,7 @@ mod tests {
         let testfile = get_testfile(TestFileContent::SingleLine);
         let filehash =
             FileHash::new(testfile.file.path()).expect("Can't create FileHash from existing file");
-        assert_eq!(testfile.file.path(), filehash.path);
+        assert_eq!(testfile.file.path(), filehash.path());
     }
 
     #[test]
