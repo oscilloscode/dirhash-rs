@@ -110,7 +110,7 @@ mod tests {
     fn check_compute_hash(content: TestFileContent) {
         let testfile = get_testfile(content);
         let mut filehash =
-            FileHash::new(&testfile.file.path()).expect("Can't create FileHash from existing file");
+            FileHash::new(testfile.file.path()).expect("Can't create FileHash from existing file");
         assert!(filehash.hash.is_none());
         assert!(filehash.compute_hash().is_ok());
         assert_eq!(testfile.test_vector.hash, filehash.hash.unwrap());
@@ -141,7 +141,7 @@ mod tests {
     fn create_filehash_from_existent() {
         let testfile = get_testfile(TestFileContent::SingleLine);
         let filehash =
-            FileHash::new(&testfile.file.path()).expect("Can't create FileHash from existing file");
+            FileHash::new(testfile.file.path()).expect("Can't create FileHash from existing file");
         assert_eq!(testfile.file.path(), filehash.path);
     }
 
