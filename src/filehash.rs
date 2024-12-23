@@ -1,7 +1,4 @@
 /// Test list:
-/// - TestFile creation
-/// - FileHash creation
-/// - Hashing files
 /// - Other filetypes (links, char device, block dev, socket, pipe)
 ///
 use std::{
