@@ -8,19 +8,19 @@ use std::{
 
 use sha2::{Digest, Sha256};
 
-pub(crate) struct FileHash {
+pub struct FileHash {
     path: PathBuf,
     hash: Option<[u8; 32]>,
 }
 
 impl FileHash {
-    pub(crate) fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         Ok(FileHash {
             path: path.as_ref().canonicalize()?,
             hash: Default::default(),
         })
     }
-    pub(crate) fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+    pub fn compute_hash(&mut self) -> Result<(), std::io::Error> {
         let data = fs::read(&self.path)?;
         let hash = Sha256::digest(data);
         self.hash = Some(hash.into());
