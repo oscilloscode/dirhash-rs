@@ -8,23 +8,23 @@ use std::{
 
 use sha2::{Digest, Sha256};
 
-use crate::filelisthash::PathHashProvider;
+use crate::pathhashlist::PathHashProvider;
 
-pub struct FileHash {
+pub struct PathHash {
     path: PathBuf,
     hash: Option<[u8; 32]>,
 }
 
-impl FileHash {
+impl PathHash {
     pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
-        Ok(FileHash {
+        Ok(PathHash {
             path: path.as_ref().canonicalize()?,
             hash: Default::default(),
         })
     }
 }
 
-impl PathHashProvider for FileHash {
+impl PathHashProvider for PathHash {
     fn compute_hash(&mut self) -> Result<(), std::io::Error> {
         let data = fs::read(&self.path)?;
         let hash = Sha256::digest(data);
@@ -122,11 +122,11 @@ mod tests {
 
     fn check_compute_hash(content: TestFileContent) {
         let testfile = get_testfile(content);
-        let mut filehash =
-            FileHash::new(testfile.file.path()).expect("Can't create FileHash from existing file");
-        assert!(filehash.hash().is_none());
-        assert!(filehash.compute_hash().is_ok());
-        assert_eq!(testfile.test_vector.hash, *filehash.hash().unwrap());
+        let mut pathhash =
+            PathHash::new(testfile.file.path()).expect("Can't create PathHash from existing file");
+        assert!(pathhash.hash().is_none());
+        assert!(pathhash.compute_hash().is_ok());
+        assert_eq!(testfile.test_vector.hash, *pathhash.hash().unwrap());
     }
 
     #[test]
@@ -145,17 +145,17 @@ mod tests {
     }
 
     #[test]
-    fn create_filehash_from_non_existent() {
-        let filehash = FileHash::new(Path::new("/oiweisliejfliajseflij"));
-        assert!(filehash.is_err());
+    fn create_pathhash_from_non_existent() {
+        let pathhash = PathHash::new(Path::new("/oiweisliejfliajseflij"));
+        assert!(pathhash.is_err());
     }
 
     #[test]
-    fn create_filehash_from_existent() {
+    fn create_pathhash_from_existent() {
         let testfile = get_testfile(TestFileContent::SingleLine);
-        let filehash =
-            FileHash::new(testfile.file.path()).expect("Can't create FileHash from existing file");
-        assert_eq!(testfile.file.path(), filehash.path());
+        let pathhash =
+            PathHash::new(testfile.file.path()).expect("Can't create PathHash from existing file");
+        assert_eq!(testfile.file.path(), pathhash.path());
     }
 
     #[test]

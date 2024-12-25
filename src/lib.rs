@@ -14,8 +14,8 @@
 ///
 use std::path::{Path, PathBuf};
 
-pub mod filehash;
-pub mod filelisthash;
+pub mod pathhash;
+pub mod pathhashlist;
 
 pub struct DirHash {
     path: PathBuf,
