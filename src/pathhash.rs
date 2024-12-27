@@ -10,12 +10,16 @@ use sha2::{Digest, Sha256};
 
 use crate::pathhashlist::PathHashProvider;
 
+/// Struct containing a path and hash from a file on the filesystem.
 pub struct PathHash {
     path: PathBuf,
     hash: Option<[u8; 32]>,
 }
 
 impl PathHash {
+    /// Creates a [`PathHash`] from a path to a file on the system.
+    /// Returns an [`std::io::Error`] if the file doesn't exist because the path gets canonicalized
+    /// (which fails if the file doesn't exist).
     pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
         Ok(PathHash {
             path: path.as_ref().canonicalize()?,
@@ -25,6 +29,8 @@ impl PathHash {
 }
 
 impl PathHashProvider for PathHash {
+    /// Computes the SHA256 hash of the contents of the corresponding file and stores it. Calling
+    /// this method again will reread the file and recompute the hash value.
     fn compute_hash(&mut self) -> Result<(), std::io::Error> {
         let data = fs::read(&self.path)?;
         let hash = Sha256::digest(data);
@@ -32,10 +38,13 @@ impl PathHashProvider for PathHash {
         Ok(())
     }
 
+    /// Returns the stored hash of the file contents. If `None`, use [`Self::compute_hash()`] to compute the
+    /// hash value.
     fn hash(&self) -> Option<&[u8; 32]> {
         self.hash.as_ref()
     }
 
+    /// Returns the stored path.
     fn path(&self) -> &Path {
         &self.path
     }
