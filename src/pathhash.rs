@@ -1,6 +1,7 @@
-/// Test list:
-/// - Other filetypes (links, char device, block dev, socket, pipe)
-///
+//! Test list:
+//! - Other filetypes (links, char device, block dev, socket, pipe)
+//!
+
 use std::{
     fs,
     path::{Path, PathBuf},

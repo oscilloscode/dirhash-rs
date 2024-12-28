@@ -1,13 +1,14 @@
-/// Test list:
-/// - PathHashList only calls `compute_hash` if no hash in PathHash
-/// - Define and test what happens with sorting two files have the same hash (i.e., same content).
-///   Probably use the paths to define order.
-/// - Add tests to check that sort() behaves as expected (both for the hash and the path)
-///
+//! Test list:
+//! - PathHashList only calls `compute_hash` if no hash in PathHash
+//! - Define and test what happens with sorting two files have the same hash (i.e., same content).
+//!   Probably use the paths to define order.
+//! - Add tests to check that sort() behaves as expected (both for the hash and the path)
+//!
+
+use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
-use std::fmt::Write;
 
 // TODO: Rename this!!
 pub trait PathHashProvider {
