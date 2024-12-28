@@ -87,127 +87,138 @@ where
 
 #[cfg(test)]
 mod tests {
+    mod pathhashspy {
+        use super::*;
 
-    use super::*;
-
-    // Todo:
-    // - Create a new function and force calling it by wrapping spy into "instrumentation" module?
-    struct PathHashSpy {
-        path: PathBuf,
-        hash: Option<[u8; 32]>,
-        next_hash: Option<[u8; 32]>,
-        call_count_compute_hash: u32,
-    }
-
-    impl PathHashSpy {
-        fn call_count_compute_hash(&self) -> u32 {
-            self.call_count_compute_hash
+        pub struct PathHashSpy {
+            path: PathBuf,
+            hash: Option<[u8; 32]>,
+            next_hash: Option<[u8; 32]>,
+            call_count_compute_hash: u32,
         }
-    }
 
-    impl PathHashProvider for PathHashSpy {
-        fn compute_hash(&mut self) -> Result<(), std::io::Error> {
-            self.call_count_compute_hash += 1;
-
-            match self.next_hash {
-                Some(hash) => {
-                    self.hash = Some(hash);
-                    Ok(())
+        impl PathHashSpy {
+            pub fn new(path: PathBuf, hash: Option<[u8; 32]>, next_hash: Option<[u8; 32]>) -> Self {
+                Self {
+                    path,
+                    hash,
+                    next_hash,
+                    call_count_compute_hash: 0,
                 }
-                None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "oh no!")),
+            }
+
+            pub fn call_count_compute_hash(&self) -> u32 {
+                self.call_count_compute_hash
             }
         }
 
-        fn hash(&self) -> Option<&[u8; 32]> {
-            self.hash.as_ref()
+        impl PathHashProvider for PathHashSpy {
+            fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+                self.call_count_compute_hash += 1;
+
+                match self.next_hash {
+                    Some(hash) => {
+                        self.hash = Some(hash);
+                        Ok(())
+                    }
+                    None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "oh no!")),
+                }
+            }
+
+            fn hash(&self) -> Option<&[u8; 32]> {
+                self.hash.as_ref()
+            }
+
+            fn path(&self) -> &Path {
+                &self.path
+            }
         }
 
-        fn path(&self) -> &Path {
-            &self.path
-        }
-    }
+        #[test]
+        fn create_pathhashprovider_spies() {
+            let spies = vec![
+                PathHashSpy {
+                    path: Path::new("/some/path").to_owned(),
+                    hash: None,
+                    next_hash: None,
+                    call_count_compute_hash: 0,
+                },
+                PathHashSpy {
+                    path: Path::new("/other/path").to_owned(),
+                    hash: Some(*b"01234567890123456789012345678901"),
+                    next_hash: None,
+                    call_count_compute_hash: 0,
+                },
+            ];
 
-    #[test]
-    fn create_pathhashprovider_spies() {
-        let spies = vec![
-            PathHashSpy {
+            assert_eq!("/some/path", spies[0].path().to_str().unwrap());
+            assert!(spies[0].hash().is_none());
+            assert_eq!(0, spies[0].call_count_compute_hash());
+            assert_eq!("/other/path", spies[1].path().to_str().unwrap());
+            assert_eq!(0x34, spies[1].hash().unwrap()[4]);
+            assert_eq!(0, spies[1].call_count_compute_hash());
+        }
+
+        #[test]
+        fn compute_hash() {
+            let mut spy = PathHashSpy {
+                path: Path::new("/some/path").to_owned(),
+                hash: None,
+                next_hash: Some(*b"01234567890123456789012345678901"),
+                call_count_compute_hash: 0,
+            };
+
+            assert!(spy.compute_hash().is_ok());
+
+            assert_eq!(1, spy.call_count_compute_hash());
+            assert_eq!(b"01234567890123456789012345678901", spy.hash().unwrap());
+            assert_eq!(b"01234567890123456789012345678901", &spy.next_hash.unwrap());
+        }
+
+        // TODO:
+        // - Use something different than std::io::Error to accomodate the error thrown here? But,
+        // changing the error type just for the test is probably bad. Check if the type also profits
+        // from changing the error type.
+        #[test]
+        fn compute_hash_no_nexthash() {
+            let mut spy = PathHashSpy {
                 path: Path::new("/some/path").to_owned(),
                 hash: None,
                 next_hash: None,
                 call_count_compute_hash: 0,
-            },
-            PathHashSpy {
-                path: Path::new("/other/path").to_owned(),
-                hash: Some(*b"01234567890123456789012345678901"),
-                next_hash: None,
+            };
+
+            let e = spy.compute_hash();
+            assert!(e.is_err());
+            assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(1, spy.call_count_compute_hash());
+        }
+
+        #[test]
+        fn compute_hash_later_no_nexthash() {
+            let mut spy = PathHashSpy {
+                path: Path::new("/some/path").to_owned(),
+                hash: None,
+                next_hash: Some(*b"01234567890123456789012345678901"),
                 call_count_compute_hash: 0,
-            },
-        ];
+            };
 
-        assert_eq!("/some/path", spies[0].path().to_str().unwrap());
-        assert!(spies[0].hash().is_none());
-        assert_eq!(0, spies[0].call_count_compute_hash());
-        assert_eq!("/other/path", spies[1].path().to_str().unwrap());
-        assert_eq!(0x34, spies[1].hash().unwrap()[4]);
-        assert_eq!(0, spies[1].call_count_compute_hash());
+            assert!(spy.compute_hash().is_ok());
+
+            assert_eq!(b"01234567890123456789012345678901", spy.hash().unwrap());
+            assert_eq!(b"01234567890123456789012345678901", &spy.next_hash.unwrap());
+            assert_eq!(1, spy.call_count_compute_hash());
+
+            spy.next_hash = None;
+            let e = spy.compute_hash();
+            assert!(e.is_err());
+            assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
+            assert_eq!(2, spy.call_count_compute_hash());
+        }
     }
 
-    #[test]
-    fn spy_compute_hash() {
-        let mut spy = PathHashSpy {
-            path: Path::new("/some/path").to_owned(),
-            hash: None,
-            next_hash: Some(*b"01234567890123456789012345678901"),
-            call_count_compute_hash: 0,
-        };
-
-        assert!(spy.compute_hash().is_ok());
-
-        assert_eq!(1, spy.call_count_compute_hash());
-        assert_eq!(b"01234567890123456789012345678901", spy.hash().unwrap());
-        assert_eq!(b"01234567890123456789012345678901", &spy.next_hash.unwrap());
-    }
-
-    // TODO:
-    // - Use something different than std::io::Error to accomodate the error thrown here? But,
-    // changing the error type just for the test is probably bad. Check if the type also profits
-    // from changing the error type.
-    #[test]
-    fn spy_compute_hash_no_nexthash() {
-        let mut spy = PathHashSpy {
-            path: Path::new("/some/path").to_owned(),
-            hash: None,
-            next_hash: None,
-            call_count_compute_hash: 0,
-        };
-
-        let e = spy.compute_hash();
-        assert!(e.is_err());
-        assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
-        assert_eq!(1, spy.call_count_compute_hash());
-    }
-
-    #[test]
-    fn spy_compute_hash_later_no_nexthash() {
-        let mut spy = PathHashSpy {
-            path: Path::new("/some/path").to_owned(),
-            hash: None,
-            next_hash: Some(*b"01234567890123456789012345678901"),
-            call_count_compute_hash: 0,
-        };
-
-        assert!(spy.compute_hash().is_ok());
-
-        assert_eq!(b"01234567890123456789012345678901", spy.hash().unwrap());
-        assert_eq!(b"01234567890123456789012345678901", &spy.next_hash.unwrap());
-        assert_eq!(1, spy.call_count_compute_hash());
-
-        spy.next_hash = None;
-        let e = spy.compute_hash();
-        assert!(e.is_err());
-        assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
-        assert_eq!(2, spy.call_count_compute_hash());
-    }
+    use super::*;
+    use pathhashspy::PathHashSpy;
 
     #[test]
     fn pathhashlist_hash_is_none_after_init() {
@@ -229,18 +240,16 @@ mod tests {
     #[test]
     fn pathhashlist_compute_hash() {
         let spies = vec![
-            PathHashSpy {
-                path: Path::new("/some/path").to_owned(),
-                hash: Some(*b"\xd8\x3b\xa8\x04\x20\xec\x99\xbc\xb1\x43\xdf\x16\xa0\x0c\x39\xa5\x6c\x14\x03\x41\xe4\x44\x6a\xe9\xb5\xe8\xb5\xa6\xd1\x81\x16\xed"), // hash of "/some/path"
-                next_hash: None,
-            call_count_compute_hash: 0,
-            },
-            PathHashSpy {
-                path: Path::new("/other/path").to_owned(),
-                hash: Some(*b"\x59\xea\xd6\x2a\x5f\x16\xe4\xee\x2f\x7d\xe8\x9e\x52\xf9\x78\xd6\xf1\x5e\x97\xf3\x87\x25\x5d\xd7\x7e\xd3\xc7\x2f\x88\x88\x28\x55"), // hash of "/other/path"
-                next_hash: None,
-            call_count_compute_hash: 0,
-            },
+            PathHashSpy::new(
+                Path::new("/some/path").to_owned(),
+                Some(*b"\xd8\x3b\xa8\x04\x20\xec\x99\xbc\xb1\x43\xdf\x16\xa0\x0c\x39\xa5\x6c\x14\x03\x41\xe4\x44\x6a\xe9\xb5\xe8\xb5\xa6\xd1\x81\x16\xed"), // hash of "/some/path"
+                None,
+            ),
+            PathHashSpy::new(
+                Path::new("/other/path").to_owned(),
+                Some(*b"\x59\xea\xd6\x2a\x5f\x16\xe4\xee\x2f\x7d\xe8\x9e\x52\xf9\x78\xd6\xf1\x5e\x97\xf3\x87\x25\x5d\xd7\x7e\xd3\xc7\x2f\x88\x88\x28\x55"), // hash of "/other/path"
+                None,
+            ),
         ];
         let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
 
