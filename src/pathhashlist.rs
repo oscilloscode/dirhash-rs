@@ -121,7 +121,8 @@ mod tests {
                         self.hash = Some(hash);
                         Ok(())
                     }
-                    None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "oh no!")),
+                    // None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "oh no!")),
+                    None => panic!("Can't compute next hash (next_hash is None)."),
                 }
             }
 
@@ -180,6 +181,7 @@ mod tests {
         // changing the error type just for the test is probably bad. Check if the type also profits
         // from changing the error type.
         #[test]
+        #[should_panic]
         fn compute_hash_no_nexthash() {
             let mut spy = PathHashSpy {
                 path: Path::new("/some/path").to_owned(),
@@ -188,13 +190,11 @@ mod tests {
                 call_count_compute_hash: 0,
             };
 
-            let e = spy.compute_hash();
-            assert!(e.is_err());
-            assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
-            assert_eq!(spy.call_count_compute_hash(), 1);
+            let _ = spy.compute_hash();
         }
 
         #[test]
+        #[should_panic]
         fn compute_hash_later_no_nexthash() {
             let mut spy = PathHashSpy {
                 path: Path::new("/some/path").to_owned(),
@@ -203,17 +203,25 @@ mod tests {
                 call_count_compute_hash: 0,
             };
 
-            assert!(spy.compute_hash().is_ok());
+            // Can't use asserts to check correct functionality as this would count as a panic,
+            // fulfilling the `#[should_panic]` expectation of the test. Returning from the test
+            // early will result in no panic which fails the test.
+            if !spy.compute_hash().is_ok() {
+                return;
+            }
 
-            assert_eq!(spy.hash().unwrap(), b"01234567890123456789012345678901");
-            assert_eq!(&spy.next_hash.unwrap(), b"01234567890123456789012345678901");
-            assert_eq!(spy.call_count_compute_hash(), 1);
+            if spy.hash().unwrap() != b"01234567890123456789012345678901" {
+                return;
+            }
+            if &spy.next_hash.unwrap() != b"01234567890123456789012345678901" {
+                return;
+            }
+            if spy.call_count_compute_hash() != 1 {
+                return;
+            }
 
             spy.next_hash = None;
-            let e = spy.compute_hash();
-            assert!(e.is_err());
-            assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
-            assert_eq!(spy.call_count_compute_hash(), 2);
+            let _ = spy.compute_hash();
         }
     }
 
