@@ -37,11 +37,23 @@ where
         self.hash.as_ref()
     }
 
+    /// Computes hash of all PathHashs.
+    ///
+    /// TODO:
+    /// Either test both implementations and keep them both, or benchmark them, select one, and only
+    /// use that one!
     pub fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+        self.compute_hash_with_update()
+        // self.compute_hash_with_string()
+    }
+
+    /// Computes hash of all PathHashs.
+    ///
+    /// This version hashes the string representation of a PathHash immediately by calling the
+    /// `update()` method repeatedly.
+    pub fn compute_hash_with_update(&mut self) -> Result<(), std::io::Error> {
         let mut hashable_data_vec: Vec<([u8; 32], PathBuf)> =
             Vec::with_capacity(self.pathhashvec.len());
-
-        dbg!(&hashable_data_vec);
 
         for pb in &mut self.pathhashvec {
             if pb.hash().is_none() {
@@ -49,13 +61,45 @@ where
             }
             hashable_data_vec.push((*pb.hash().unwrap(), pb.path().to_owned()));
         }
-        dbg!(&hashable_data_vec);
 
         hashable_data_vec.sort();
 
-        dbg!(&hashable_data_vec);
+        let mut hasher = Sha256::new();
+        let mut hashable_string = String::new();
 
-        // let mut hasher = Sha256::new();
+        for (hash, path) in hashable_data_vec {
+            hashable_string.clear();
+            let _ = writeln!(
+                &mut hashable_string,
+                "{}  {}",
+                hex::encode(hash),
+                path.to_string_lossy()
+            );
+
+            hasher.update(&hashable_string);
+        }
+
+        let hash = hasher.finalize();
+        self.hash = Some(hash.into());
+
+        Ok(())
+    }
+
+    /// Computes hash of all PathHashs.
+    ///
+    /// This version puts everything into a single string which is then hashed in one go.
+    pub fn compute_hash_with_string(&mut self) -> Result<(), std::io::Error> {
+        let mut hashable_data_vec: Vec<([u8; 32], PathBuf)> =
+            Vec::with_capacity(self.pathhashvec.len());
+
+        for pb in &mut self.pathhashvec {
+            if pb.hash().is_none() {
+                pb.compute_hash()?;
+            }
+            hashable_data_vec.push((*pb.hash().unwrap(), pb.path().to_owned()));
+        }
+        hashable_data_vec.sort();
+
         let mut hashable_string = String::new();
 
         for (hash, path) in hashable_data_vec {
@@ -65,19 +109,9 @@ where
                 hex::encode(hash),
                 path.to_string_lossy()
             );
-            // let hashable_string = format!("{}  {}", hex::encode(hash), path.to_string_lossy());
-            // print!("{}", hashable_string);
-            dbg!(&hashable_string);
         }
 
-        dbg!(&hashable_string);
-
-        // hasher.update(hashable_string);
-
-        // let hash = hasher.finalize();
-
         let hash = Sha256::digest(hashable_string);
-
         self.hash = Some(hash.into());
 
         Ok(())
