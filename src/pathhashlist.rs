@@ -335,4 +335,17 @@ mod tests {
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
         assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
     }
+
+    #[test]
+    fn pathhashlist_compute_hash_no_files() {
+        let spies: Vec<PathHashSpy> = vec![];
+        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+
+        assert!(pathhashlist.compute_hash().is_ok());
+
+        // Hash of nothing at all (not even a newline):
+        //
+        // -> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        assert_eq!(pathhashlist.hash().unwrap(), b"\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55");
+    }
 }
