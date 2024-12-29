@@ -1,5 +1,4 @@
 //! Test list:
-//! - PathHashList only calls `compute_hash` if no hash in PathHash
 //! - Define and test what happens with sorting two files have the same hash (i.e., same content).
 //!   Probably use the paths to define order.
 //! - Add tests to check that sort() behaves as expected (both for the hash and the path)
@@ -264,6 +263,35 @@ mod tests {
         assert!(pathhashlist.compute_hash().is_ok());
 
         assert_eq!(pathhashlist.pathhashvec[0].call_count_compute_hash(), 0);
+        assert_eq!(pathhashlist.pathhashvec[1].call_count_compute_hash(), 0);
+
+        // Hash of (the newline after the second line is also part of the digest):
+        // 59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path
+        // d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path
+        //
+        // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
+        assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
+    }
+
+    #[test]
+    fn pathhashlist_compute_hash_computes_underlying_hash_only_when_necessary() {
+        let spies = vec![
+            PathHashSpy::new(
+                Path::new("/some/path").to_owned(),
+                None,
+                Some(*b"\xd8\x3b\xa8\x04\x20\xec\x99\xbc\xb1\x43\xdf\x16\xa0\x0c\x39\xa5\x6c\x14\x03\x41\xe4\x44\x6a\xe9\xb5\xe8\xb5\xa6\xd1\x81\x16\xed"), // hash of "/some/path"
+            ),
+            PathHashSpy::new(
+                Path::new("/other/path").to_owned(),
+                Some(*b"\x59\xea\xd6\x2a\x5f\x16\xe4\xee\x2f\x7d\xe8\x9e\x52\xf9\x78\xd6\xf1\x5e\x97\xf3\x87\x25\x5d\xd7\x7e\xd3\xc7\x2f\x88\x88\x28\x55"), // hash of "/other/path"
+                None,
+            ),
+        ];
+        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+
+        assert!(pathhashlist.compute_hash().is_ok());
+
+        assert_eq!(pathhashlist.pathhashvec[0].call_count_compute_hash(), 1);
         assert_eq!(pathhashlist.pathhashvec[1].call_count_compute_hash(), 0);
 
         // Hash of (the newline after the second line is also part of the digest):
