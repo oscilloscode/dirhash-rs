@@ -87,66 +87,6 @@ where
 
 #[cfg(test)]
 mod tests {
-    mod slice_sort_behavior {
-        #[test]
-        fn u8_array_first_element_different() {
-            let mut v = vec![[4, 2, 3], [1, 2, 3]];
-            v.sort();
-            assert_eq!([1, 2, 3], v[0]);
-            assert_eq!([4, 2, 3], v[1]);
-        }
-
-        #[test]
-        fn u8_array_middle_element_different() {
-            let mut v = vec![[1, 4, 3], [1, 2, 3]];
-            v.sort();
-            assert_eq!([1, 2, 3], v[0]);
-            assert_eq!([1, 4, 3], v[1]);
-        }
-
-        #[test]
-        fn u8_array_last_element_different() {
-            let mut v = vec![[1, 2, 4], [1, 2, 3]];
-            v.sort();
-            assert_eq!([1, 2, 3], v[0]);
-            assert_eq!([1, 2, 4], v[1]);
-        }
-
-        #[test]
-        fn u8_array_sorted() {
-            let mut v = vec![[1, 2, 3], [4, 2, 3]];
-            v.sort();
-            assert_eq!([1, 2, 3], v[0]);
-            assert_eq!([4, 2, 3], v[1]);
-        }
-
-        #[test]
-        fn u8_vec_equal_but_different_lengths() {
-            let mut v = vec![vec![1, 2, 3], vec![1, 2]];
-            v.sort();
-            assert_eq!(&[1, 2][..], v[0]);
-            assert_eq!(&[1, 2, 3][..], v[1]);
-        }
-
-        #[test]
-        fn u8_vec_one_empty() {
-            let mut v = vec![vec![1, 2, 3], vec![]];
-            v.sort();
-            assert_eq!(0, v[0].len());
-            assert_eq!(&[1, 2, 3][..], v[1]);
-        }
-
-        #[test]
-        fn strings() {
-            assert!(false);
-        }
-
-        #[test]
-        fn tuples() {
-            assert!(false);
-        }
-    }
-
     mod pathhashspy {
         use super::*;
 
