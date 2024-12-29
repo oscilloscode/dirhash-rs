@@ -126,8 +126,8 @@ mod tests {
             .file
             .read_to_string(&mut file_content)
             .expect("Couldn't read file.");
-        assert_eq!(test_vector.content, file_content);
-        assert_eq!(test_vector.hash, testfile.test_vector.hash);
+        assert_eq!(file_content, test_vector.content);
+        assert_eq!(testfile.test_vector.hash, test_vector.hash);
     }
 
     fn check_compute_hash(content: TestFileContent) {
@@ -136,7 +136,7 @@ mod tests {
             PathHash::new(testfile.file.path()).expect("Can't create PathHash from existing file");
         assert!(pathhash.hash().is_none());
         assert!(pathhash.compute_hash().is_ok());
-        assert_eq!(testfile.test_vector.hash, *pathhash.hash().unwrap());
+        assert_eq!(*pathhash.hash().unwrap(), testfile.test_vector.hash);
     }
 
     #[test]
@@ -165,7 +165,7 @@ mod tests {
         let testfile = get_testfile(TestFileContent::SingleLine);
         let pathhash =
             PathHash::new(testfile.file.path()).expect("Can't create PathHash from existing file");
-        assert_eq!(testfile.file.path(), pathhash.path());
+        assert_eq!(pathhash.path(), testfile.file.path());
     }
 
     #[test]

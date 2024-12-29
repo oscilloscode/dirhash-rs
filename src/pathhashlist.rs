@@ -151,12 +151,12 @@ mod tests {
                 },
             ];
 
-            assert_eq!("/some/path", spies[0].path().to_str().unwrap());
+            assert_eq!(spies[0].path().to_str().unwrap(), "/some/path");
             assert!(spies[0].hash().is_none());
-            assert_eq!(0, spies[0].call_count_compute_hash());
-            assert_eq!("/other/path", spies[1].path().to_str().unwrap());
-            assert_eq!(0x34, spies[1].hash().unwrap()[4]);
-            assert_eq!(0, spies[1].call_count_compute_hash());
+            assert_eq!(spies[0].call_count_compute_hash(), 0);
+            assert_eq!(spies[1].path().to_str().unwrap(), "/other/path");
+            assert_eq!(spies[1].hash().unwrap()[4], 0x34);
+            assert_eq!(spies[1].call_count_compute_hash(), 0);
         }
 
         #[test]
@@ -170,9 +170,9 @@ mod tests {
 
             assert!(spy.compute_hash().is_ok());
 
-            assert_eq!(1, spy.call_count_compute_hash());
-            assert_eq!(b"01234567890123456789012345678901", spy.hash().unwrap());
-            assert_eq!(b"01234567890123456789012345678901", &spy.next_hash.unwrap());
+            assert_eq!(spy.call_count_compute_hash(), 1);
+            assert_eq!(spy.hash().unwrap(), b"01234567890123456789012345678901");
+            assert_eq!(&spy.next_hash.unwrap(), b"01234567890123456789012345678901");
         }
 
         // TODO:
@@ -191,7 +191,7 @@ mod tests {
             let e = spy.compute_hash();
             assert!(e.is_err());
             assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
-            assert_eq!(1, spy.call_count_compute_hash());
+            assert_eq!(spy.call_count_compute_hash(), 1);
         }
 
         #[test]
@@ -205,15 +205,15 @@ mod tests {
 
             assert!(spy.compute_hash().is_ok());
 
-            assert_eq!(b"01234567890123456789012345678901", spy.hash().unwrap());
-            assert_eq!(b"01234567890123456789012345678901", &spy.next_hash.unwrap());
-            assert_eq!(1, spy.call_count_compute_hash());
+            assert_eq!(spy.hash().unwrap(), b"01234567890123456789012345678901");
+            assert_eq!(&spy.next_hash.unwrap(), b"01234567890123456789012345678901");
+            assert_eq!(spy.call_count_compute_hash(), 1);
 
             spy.next_hash = None;
             let e = spy.compute_hash();
             assert!(e.is_err());
             assert_eq!(e.unwrap_err().kind(), std::io::ErrorKind::NotFound);
-            assert_eq!(2, spy.call_count_compute_hash());
+            assert_eq!(spy.call_count_compute_hash(), 2);
         }
     }
 
@@ -234,7 +234,7 @@ mod tests {
         assert!(pathhashlist.hash().is_none());
         pathhashlist.hash = Some(*b"01234567890123456789012345678901");
         assert!(pathhashlist.hash().is_some());
-        assert_eq!(0x37, pathhashlist.hash().unwrap()[7]);
+        assert_eq!(pathhashlist.hash().unwrap()[7], 0x37);
     }
 
     #[test]
@@ -255,14 +255,14 @@ mod tests {
 
         assert!(pathhashlist.compute_hash().is_ok());
 
-        assert_eq!(0, pathhashlist.pathhashvec[0].call_count_compute_hash());
-        assert_eq!(0, pathhashlist.pathhashvec[1].call_count_compute_hash());
+        assert_eq!(pathhashlist.pathhashvec[0].call_count_compute_hash(), 0);
+        assert_eq!(pathhashlist.pathhashvec[1].call_count_compute_hash(), 0);
 
         // Hash of (the newline after the second line is also part of the digest):
         // 59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path
         // d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
-        assert_eq!(b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90", pathhashlist.hash().unwrap());
+        assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
     }
 }
