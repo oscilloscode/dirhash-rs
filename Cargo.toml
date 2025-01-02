@@ -15,3 +15,6 @@ hex = "0.4.3"
 [dev-dependencies]
 criterion = "0.5.1"
 tempfile = "3.14.0"
+
+[features]
+test-mocks = []
