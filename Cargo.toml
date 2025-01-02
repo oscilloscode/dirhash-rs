@@ -6,6 +6,7 @@ edition = "2021"
 [[bench]]
 name = "my_benchmark"
 harness = false
+required-features = ["test-mocks"]
 
 [dependencies]
 walkdir = "2.5.0"
