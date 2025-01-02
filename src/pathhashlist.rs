@@ -9,12 +9,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-// TODO: Rename this!!
-pub trait PathHashProvider {
-    fn path(&self) -> &Path;
-    fn hash(&self) -> Option<&[u8; 32]>;
-    fn compute_hash(&mut self) -> Result<(), std::io::Error>;
-}
+use crate::pathhash::PathHashProvider;
 
 pub struct PathHashList<T> {
     pathhashvec: Vec<T>,
@@ -120,146 +115,8 @@ where
 
 #[cfg(test)]
 mod tests {
-    mod pathhashspy {
-        use super::*;
-
-        pub struct PathHashSpy {
-            path: PathBuf,
-            hash: Option<[u8; 32]>,
-            next_hash: Option<[u8; 32]>,
-            call_count_compute_hash: u32,
-        }
-
-        impl PathHashSpy {
-            pub fn new(path: PathBuf, hash: Option<[u8; 32]>, next_hash: Option<[u8; 32]>) -> Self {
-                Self {
-                    path,
-                    hash,
-                    next_hash,
-                    call_count_compute_hash: 0,
-                }
-            }
-
-            pub fn call_count_compute_hash(&self) -> u32 {
-                self.call_count_compute_hash
-            }
-        }
-
-        impl PathHashProvider for PathHashSpy {
-            fn compute_hash(&mut self) -> Result<(), std::io::Error> {
-                self.call_count_compute_hash += 1;
-
-                match self.next_hash {
-                    Some(hash) => {
-                        self.hash = Some(hash);
-                        Ok(())
-                    }
-                    // None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "oh no!")),
-                    None => panic!("Can't compute next hash (next_hash is None)."),
-                }
-            }
-
-            fn hash(&self) -> Option<&[u8; 32]> {
-                self.hash.as_ref()
-            }
-
-            fn path(&self) -> &Path {
-                &self.path
-            }
-        }
-
-        #[test]
-        fn create_pathhashprovider_spies() {
-            let spies = vec![
-                PathHashSpy {
-                    path: Path::new("/some/path").to_owned(),
-                    hash: None,
-                    next_hash: None,
-                    call_count_compute_hash: 0,
-                },
-                PathHashSpy {
-                    path: Path::new("/other/path").to_owned(),
-                    hash: Some(*b"01234567890123456789012345678901"),
-                    next_hash: None,
-                    call_count_compute_hash: 0,
-                },
-            ];
-
-            assert_eq!(spies[0].path().to_str().unwrap(), "/some/path");
-            assert!(spies[0].hash().is_none());
-            assert_eq!(spies[0].call_count_compute_hash(), 0);
-            assert_eq!(spies[1].path().to_str().unwrap(), "/other/path");
-            assert_eq!(spies[1].hash().unwrap()[4], 0x34);
-            assert_eq!(spies[1].call_count_compute_hash(), 0);
-        }
-
-        #[test]
-        fn compute_hash() {
-            let mut spy = PathHashSpy {
-                path: Path::new("/some/path").to_owned(),
-                hash: None,
-                next_hash: Some(*b"01234567890123456789012345678901"),
-                call_count_compute_hash: 0,
-            };
-
-            assert!(spy.compute_hash().is_ok());
-
-            assert_eq!(spy.call_count_compute_hash(), 1);
-            assert_eq!(spy.hash().unwrap(), b"01234567890123456789012345678901");
-            assert_eq!(&spy.next_hash.unwrap(), b"01234567890123456789012345678901");
-        }
-
-        // TODO:
-        // - Use something different than std::io::Error to accomodate the error thrown here? But,
-        // changing the error type just for the test is probably bad. Check if the type also profits
-        // from changing the error type.
-        #[test]
-        #[should_panic]
-        fn compute_hash_no_nexthash() {
-            let mut spy = PathHashSpy {
-                path: Path::new("/some/path").to_owned(),
-                hash: None,
-                next_hash: None,
-                call_count_compute_hash: 0,
-            };
-
-            let _ = spy.compute_hash();
-        }
-
-        #[test]
-        #[should_panic]
-        fn compute_hash_later_no_nexthash() {
-            let mut spy = PathHashSpy {
-                path: Path::new("/some/path").to_owned(),
-                hash: None,
-                next_hash: Some(*b"01234567890123456789012345678901"),
-                call_count_compute_hash: 0,
-            };
-
-            // Can't use asserts to check correct functionality as this would count as a panic,
-            // fulfilling the `#[should_panic]` expectation of the test. Returning from the test
-            // early will result in no panic which fails the test.
-            if !spy.compute_hash().is_ok() {
-                return;
-            }
-
-            if spy.hash().unwrap() != b"01234567890123456789012345678901" {
-                return;
-            }
-            if &spy.next_hash.unwrap() != b"01234567890123456789012345678901" {
-                return;
-            }
-            if spy.call_count_compute_hash() != 1 {
-                return;
-            }
-
-            spy.next_hash = None;
-            let _ = spy.compute_hash();
-        }
-    }
-
     use super::*;
-    use pathhashspy::PathHashSpy;
+    use crate::pathhash::pathhashspy::PathHashSpy;
 
     #[test]
     fn pathhashlist_hash_is_none_after_init() {
