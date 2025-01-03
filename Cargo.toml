@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bench]]
-name = "my_benchmark"
+name = "pathhashlist_benchmark"
 harness = false
 required-features = ["test-mocks"]
 
