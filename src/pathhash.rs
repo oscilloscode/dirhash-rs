@@ -226,7 +226,6 @@ pub mod pathhashspy {
                     self.hash = Some(hash);
                     Ok(())
                 }
-                // None => Err(std::io::Error::new(std::io::ErrorKind::NotFound, "oh no!")),
                 None => panic!("Can't compute next hash (next_hash is None)."),
             }
         }
