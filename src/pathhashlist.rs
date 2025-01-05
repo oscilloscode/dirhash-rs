@@ -11,6 +11,7 @@ use sha2::{Digest, Sha256};
 
 use crate::pathhash::PathHashProvider;
 
+#[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PathHashList<T> {
     pathhashvec: Vec<T>,
     hash: Option<[u8; 32]>,

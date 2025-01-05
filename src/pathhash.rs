@@ -17,6 +17,7 @@ pub trait PathHashProvider {
 }
 
 /// Struct containing a path and hash from a file on the filesystem.
+#[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PathHash {
     path: PathBuf,
     hash: Option<[u8; 32]>,
@@ -65,7 +66,7 @@ mod tests {
     use super::*;
     use tempfile::NamedTempFile;
 
-    #[derive(Clone, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+    #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
     struct TestVector {
         content: String,
         hash: [u8; 32],
@@ -193,6 +194,7 @@ mod tests {
 pub mod pathhashspy {
     use super::*;
 
+    #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
     pub struct PathHashSpy {
         path: PathBuf,
         hash: Option<[u8; 32]>,
