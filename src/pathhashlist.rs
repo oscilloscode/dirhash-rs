@@ -50,7 +50,7 @@ where
     pub fn compute_hash_with_update(&mut self) -> Result<(), std::io::Error> {
         let mut hashable_data_vec = self.get_hashable_data_vec()?;
 
-        hashable_data_vec.sort();
+        sort_hashable_data_vec(&mut hashable_data_vec);
 
         let mut hasher = Sha256::new();
         let mut hashable_string = String::new();
@@ -79,7 +79,7 @@ where
     pub fn compute_hash_with_string(&mut self) -> Result<(), std::io::Error> {
         let mut hashable_data_vec = self.get_hashable_data_vec()?;
 
-        hashable_data_vec.sort();
+        sort_hashable_data_vec(&mut hashable_data_vec);
 
         let mut hashable_string = String::new();
 
@@ -111,6 +111,11 @@ where
 
         Ok(hashable_data_vec)
     }
+}
+
+// Exposed for testing.
+fn sort_hashable_data_vec(vec: &mut Vec<([u8; 32], PathBuf)>) {
+    vec.sort();
 }
 
 #[cfg(test)]
