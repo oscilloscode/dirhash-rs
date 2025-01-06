@@ -48,15 +48,7 @@ where
     /// This version hashes the string representation of a PathHash immediately by calling the
     /// `update()` method repeatedly.
     pub fn compute_hash_with_update(&mut self) -> Result<(), std::io::Error> {
-        let mut hashable_data_vec: Vec<([u8; 32], PathBuf)> =
-            Vec::with_capacity(self.pathhashvec.len());
-
-        for pb in &mut self.pathhashvec {
-            if pb.hash().is_none() {
-                pb.compute_hash()?;
-            }
-            hashable_data_vec.push((*pb.hash().unwrap(), pb.path().to_owned()));
-        }
+        let mut hashable_data_vec = self.get_hashable_data_vec()?;
 
         hashable_data_vec.sort();
 
@@ -85,15 +77,8 @@ where
     ///
     /// This version puts everything into a single string which is then hashed in one go.
     pub fn compute_hash_with_string(&mut self) -> Result<(), std::io::Error> {
-        let mut hashable_data_vec: Vec<([u8; 32], PathBuf)> =
-            Vec::with_capacity(self.pathhashvec.len());
+        let mut hashable_data_vec = self.get_hashable_data_vec()?;
 
-        for pb in &mut self.pathhashvec {
-            if pb.hash().is_none() {
-                pb.compute_hash()?;
-            }
-            hashable_data_vec.push((*pb.hash().unwrap(), pb.path().to_owned()));
-        }
         hashable_data_vec.sort();
 
         let mut hashable_string = String::new();
@@ -111,6 +96,20 @@ where
         self.hash = Some(hash.into());
 
         Ok(())
+    }
+
+    fn get_hashable_data_vec(&mut self) -> Result<Vec<([u8; 32], PathBuf)>, std::io::Error> {
+        let mut hashable_data_vec: Vec<([u8; 32], PathBuf)> =
+            Vec::with_capacity(self.pathhashvec.len());
+
+        for pb in &mut self.pathhashvec {
+            if pb.hash().is_none() {
+                pb.compute_hash()?;
+            }
+            hashable_data_vec.push((*pb.hash().unwrap(), pb.path().to_owned()));
+        }
+
+        Ok(hashable_data_vec)
     }
 }
 
