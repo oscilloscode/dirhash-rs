@@ -1,13 +1,9 @@
-use criterion::{black_box, criterion_group, criterion_main, Criterion};
+use criterion::{criterion_group, criterion_main, Criterion};
 use dirhash_rs::pathhash::pathhashspy::PathHashSpy;
 use dirhash_rs::pathhash::PathHashProvider;
 use dirhash_rs::pathhashlist::PathHashList;
-use std::fmt::Write as _;
-use std::io::Read;
 use std::io::Write as _;
 use std::path::Path;
-use std::thread;
-use std::time::Duration;
 
 fn create_large_spy_vec(count: usize) -> Vec<PathHashSpy> {
     let mut spies = Vec::with_capacity(count);
@@ -25,6 +21,7 @@ fn create_large_spy_vec(count: usize) -> Vec<PathHashSpy> {
     spies
 }
 
+#[allow(dead_code)]
 fn write_spy_vec_to_file(spies: &Vec<PathHashSpy>) -> std::io::Result<()> {
     let mut file = std::fs::File::create("spies.txt")?;
 
