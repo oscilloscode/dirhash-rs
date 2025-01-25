@@ -1,3 +1,11 @@
+//! * Rationale
+//!
+//! These characterization tests intend to capture my assumptions about the Ordering of collections.
+//! They function as a visual reference on how they get sorted. Additionally, this prevents me from
+//! overlooking a breaking change by resulting in test failures.
+//!
+//! * Sorting collections
+//!
 //! According to std::cmp::Ord: strs, vectors, slices, and arrays are ordered lexicographically. Ord
 //! is implemented for tuples up to twelve elements, but it isn't mentioned if the comparison is
 //! lexicographical.
