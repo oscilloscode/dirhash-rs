@@ -23,6 +23,72 @@ fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
     }
 }
 
+/// Creates the following directory structure:
+///
+/// ```
+/// tmpbSlLgw/
+/// ├── 0
+/// ├── 1
+/// ├── 2
+/// ├── 3
+/// ├── a
+/// │   ├── 0
+/// │   ├── 1
+/// │   ├── 2
+/// │   ├── 3
+/// │   ├── 4
+/// │   ├── 5
+/// │   ├── x
+/// │   │   ├── 0
+/// │   │   ├── 1
+/// │   │   └── 2
+/// │   ├── y
+/// │   │   ├── 0
+/// │   │   ├── 1
+/// │   │   └── 2
+/// │   └── z
+/// │       ├── 0
+/// │       ├── 1
+/// │       └── 2
+/// ├── b
+/// │   ├── 0
+/// │   ├── 1
+/// │   ├── 2
+/// │   ├── 3
+/// │   ├── 4
+/// │   ├── 5
+/// │   ├── x
+/// │   │   ├── 0
+/// │   │   ├── 1
+/// │   │   └── 2
+/// │   ├── y
+/// │   │   ├── 0
+/// │   │   ├── 1
+/// │   │   └── 2
+/// │   └── z
+/// │       ├── 0
+/// │       ├── 1
+/// │       └── 2
+/// └── c
+///     ├── 0
+///     ├── 1
+///     ├── 2
+///     ├── 3
+///     ├── 4
+///     ├── 5
+///     ├── x
+///     │   ├── 0
+///     │   ├── 1
+///     │   └── 2
+///     ├── y
+///     │   ├── 0
+///     │   ├── 1
+///     │   └── 2
+///     └── z
+///         ├── 0
+///         ├── 1
+///         └── 2
+/// ```
 fn creating_tempdir() -> TempDir {
     // let dir = tempdir().expect("Can't create tempdir");
     let dir = tempfile::Builder::new()
@@ -33,11 +99,19 @@ fn creating_tempdir() -> TempDir {
     create_numbered_files(&dir, 4);
 
     for d in ["a", "b", "c"] {
-        let newdir = dir.path().join(d);
-        std::fs::create_dir(&newdir)
-            .expect(&format!("Error while creating directory {:?}", newdir));
+        let dir_level_1 = dir.path().join(d);
+        std::fs::create_dir(&dir_level_1)
+            .expect(&format!("Error while creating directory {:?}", dir_level_1));
 
-        create_numbered_files(&newdir, 6);
+        create_numbered_files(&dir_level_1, 6);
+
+        for d in ["x", "y", "z"] {
+            let dir_level_2 = dir_level_1.join(d);
+            std::fs::create_dir(&dir_level_2)
+                .expect(&format!("Error while creating directory {:?}", dir_level_2));
+
+            create_numbered_files(&dir_level_2, 3);
+        }
     }
 
     println!("{:?}", dir.path());
