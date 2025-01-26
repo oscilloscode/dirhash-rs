@@ -23,7 +23,7 @@ fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
     }
 }
 
-/// Creates the following directory structure:
+/// Creates the following directory structure for creating_tempdir(4, 3, 6, 3, 3):
 ///
 /// ```
 /// tmpbSlLgw/
@@ -89,28 +89,34 @@ fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
 ///         ├── 1
 ///         └── 2
 /// ```
-fn creating_tempdir() -> TempDir {
+fn creating_tempdir(
+    l1_files: usize,
+    l1_dirs: usize,
+    l2_files: usize,
+    l2_dirs: usize,
+    l3_files: usize,
+) -> TempDir {
     // let dir = tempdir().expect("Can't create tempdir");
     let dir = tempfile::Builder::new()
         .keep(true)
         .tempdir()
         .expect("Can't create tempdir");
 
-    create_numbered_files(&dir, 4);
+    create_numbered_files(&dir, l1_files);
 
-    for d in ["a", "b", "c"] {
-        let dir_level_1 = dir.path().join(d);
+    for d in ('a'..='z').take(l1_dirs) {
+        let dir_level_1 = dir.path().join(d.to_string());
         std::fs::create_dir(&dir_level_1)
             .expect(&format!("Error while creating directory {:?}", dir_level_1));
 
-        create_numbered_files(&dir_level_1, 6);
+        create_numbered_files(&dir_level_1, l2_files);
 
-        for d in ["x", "y", "z"] {
-            let dir_level_2 = dir_level_1.join(d);
+        for d in ('a'..='z').rev().take(l2_dirs) {
+            let dir_level_2 = dir_level_1.join(d.to_string());
             std::fs::create_dir(&dir_level_2)
                 .expect(&format!("Error while creating directory {:?}", dir_level_2));
 
-            create_numbered_files(&dir_level_2, 3);
+            create_numbered_files(&dir_level_2, l3_files);
         }
     }
 
@@ -121,7 +127,7 @@ fn creating_tempdir() -> TempDir {
 
 #[test]
 fn this_works() {
-    let dir = creating_tempdir();
+    let dir = creating_tempdir(4, 3, 6, 3, 3);
 
     println!("within test {:?}", dir.path());
     for entry in WalkDir::new(&dir)
@@ -131,8 +137,6 @@ fn this_works() {
     {
         println!("{:?}", entry);
     }
-
-    assert_eq!(2 + 1, 3);
 
     // dir.close().expect("Can't close tempdir");
 }
