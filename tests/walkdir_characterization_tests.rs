@@ -6,9 +6,10 @@
 //!
 //! Things to check:
 //! - Listing all files on multiple levels
-//! - List a lot of files
 //! - Listing hidden files
 //! - Listing files with special characters in filename
+//! - List a lot of files
+//! - Listing very deep directories
 //! - How to handle symlinks?
 
 use std::{fs::File, path::Path};
@@ -95,11 +96,11 @@ fn creating_tempdir(
     l2_dirs: &[&str],
     l3_files: usize,
 ) -> TempDir {
-    // let dir = tempdir().expect("Can't create tempdir");
-    let dir = tempfile::Builder::new()
-        .keep(true)
-        .tempdir()
-        .expect("Can't create tempdir");
+    let dir = tempdir().expect("Can't create tempdir");
+    // let dir = tempfile::Builder::new()
+    //     .keep(true)
+    //     .tempdir()
+    //     .expect("Can't create tempdir");
 
     create_numbered_files(&dir, l1_files);
 
@@ -122,17 +123,96 @@ fn creating_tempdir(
     dir
 }
 
-#[test]
-fn this_works() {
-    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
-
-    for entry in WalkDir::new(&dir)
+fn get_filecount(path: impl AsRef<Path>) -> usize {
+    WalkDir::new(path)
         .into_iter()
         .filter_map(Result::ok)
         .filter(|e| !e.file_type().is_dir())
-    {
-        println!("{:?}", entry.path().strip_prefix(&dir).unwrap());
-    }
+        .count()
+}
 
-    // dir.close().expect("Can't close tempdir");
+fn get_filecount_at_depth(path: impl AsRef<Path>, depth: usize) -> usize {
+    WalkDir::new(path)
+        .min_depth(depth)
+        .max_depth(depth)
+        .into_iter()
+        .filter_map(Result::ok)
+        .filter(|e| !e.file_type().is_dir())
+        .count()
+}
+
+// #[ignore = "will ichs chan"]
+#[test]
+fn three_level_dir() {
+    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+
+    assert_eq!(get_filecount(&dir), 49);
+    assert_eq!(get_filecount_at_depth(&dir, 1), 4);
+    assert_eq!(get_filecount_at_depth(&dir, 2), 18);
+    assert_eq!(get_filecount_at_depth(&dir, 3), 27);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// #[ignore = "will ichs chan"]
+#[test]
+fn three_level_dir_with_hidden() {
+    let dir = creating_tempdir(2, &["a", "b"][..], 4, &["w", "x", "y", "z"][..], 1);
+
+    File::create(dir.path().join(".gitignore")).expect("Error while creating hidden file");
+    File::create(dir.path().join("a/.hidden")).expect("Error while creating hidden file");
+    File::create(dir.path().join("a/.hidden2")).expect("Error while creating hidden file");
+    File::create(dir.path().join("a/x/.hidden")).expect("Error while creating hidden file");
+    File::create(dir.path().join("b/y/.hidden")).expect("Error while creating hidden file");
+    File::create(dir.path().join("b/z/.hidden")).expect("Error while creating hidden file");
+
+    assert_eq!(get_filecount(&dir), 24);
+    assert_eq!(get_filecount_at_depth(&dir, 1), 3);
+    assert_eq!(get_filecount_at_depth(&dir, 2), 10);
+    assert_eq!(get_filecount_at_depth(&dir, 3), 11);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// #[ignore = "will ichs chan"]
+#[test]
+fn three_level_dir_with_special() {
+    let dir = creating_tempdir(5, &["a", "b", "c", "d"][..], 2, &["y", "z"][..], 4);
+
+    // Printable characters, that are forbidden in Windows but allowed in Linux.
+    File::create(dir.path().join("<angle brackets>")).expect("Error while creating hidden file");
+    File::create(dir.path().join("a/quote\"quote")).expect("Error while creating hidden file");
+    File::create(dir.path().join("b/back\\slash")).expect("Error while creating hidden file");
+    File::create(dir.path().join("b/y/pipe|pipe")).expect("Error while creating hidden file");
+    File::create(dir.path().join("c/y/question?mark")).expect("Error while creating hidden file");
+    File::create(dir.path().join("d/z/aste*risk")).expect("Error while creating hidden file");
+    // Apparently, 0-31 (ASCII control characters) aren't allowed in Windows, but Linux only
+    // disallows 0 (NULL byte). However, I don't feel like testing control characters. Adding them
+    // to filenames is insane anyway...
+
+    assert_eq!(get_filecount(&dir), 51);
+    assert_eq!(get_filecount_at_depth(&dir, 1), 6);
+    assert_eq!(get_filecount_at_depth(&dir, 2), 10);
+    assert_eq!(get_filecount_at_depth(&dir, 3), 35);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// #[ignore = "will ichs chan"]
+#[test]
+fn three_level_dir_with_many_files() {
+    let dir = creating_tempdir(
+        504,
+        &["a", "b", "c", "d", "e", "f"][..],
+        885,
+        &["t", "u", "v", "w", "x", "y", "z"][..],
+        1034,
+    );
+
+    assert_eq!(get_filecount(&dir), 49242);
+    assert_eq!(get_filecount_at_depth(&dir, 1), 504);
+    assert_eq!(get_filecount_at_depth(&dir, 2), 5310);
+    assert_eq!(get_filecount_at_depth(&dir, 3), 43428);
+
+    dir.close().expect("Can't close tempdir");
 }
