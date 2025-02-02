@@ -50,7 +50,7 @@ where
     pub fn compute_hash_with_update(&mut self) -> Result<(), std::io::Error> {
         let mut hashable_data_vec = self.get_hashable_data_vec()?;
 
-        sort_hashable_data_vec(&mut hashable_data_vec);
+        Self::sort_hashable_data_vec(&mut hashable_data_vec);
 
         let mut hasher = Sha256::new();
         let mut hashable_string = String::new();
@@ -79,7 +79,7 @@ where
     pub fn compute_hash_with_string(&mut self) -> Result<(), std::io::Error> {
         let mut hashable_data_vec = self.get_hashable_data_vec()?;
 
-        sort_hashable_data_vec(&mut hashable_data_vec);
+        Self::sort_hashable_data_vec(&mut hashable_data_vec);
 
         let mut hashable_string = String::new();
 
@@ -111,11 +111,10 @@ where
 
         Ok(hashable_data_vec)
     }
-}
 
-// Exposed for testing.
-fn sort_hashable_data_vec(vec: &mut Vec<([u8; 32], PathBuf)>) {
-    vec.sort();
+    fn sort_hashable_data_vec(vec: &mut Vec<([u8; 32], PathBuf)>) {
+        vec.sort();
+    }
 }
 
 #[cfg(test)]
@@ -209,5 +208,134 @@ mod tests {
         //
         // -> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         assert_eq!(pathhashlist.hash().unwrap(), b"\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55");
+    }
+
+    #[test]
+    fn pathhashlist_sort_hash_first_byte() {
+        let mut v: Vec<([u8; 32], PathBuf)> = vec![
+            (
+                [
+                    1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                Path::new("/one").to_owned(),
+            ),
+            (
+                [
+                    0xF, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                Path::new("/f").to_owned(),
+            ),
+            (
+                [
+                    9, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                Path::new("/nine").to_owned(),
+            ),
+            (
+                [
+                    0xA, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                Path::new("/a").to_owned(),
+            ),
+            (
+                [
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0,
+                ],
+                Path::new("/zero").to_owned(),
+            ),
+        ];
+
+        PathHashList::<PathHashSpy>::sort_hashable_data_vec(&mut v);
+
+        assert_eq!(v[0].1.to_str().unwrap(), "/zero");
+        assert_eq!(v[1].1.to_str().unwrap(), "/one");
+        assert_eq!(v[2].1.to_str().unwrap(), "/nine");
+        assert_eq!(v[3].1.to_str().unwrap(), "/a");
+        assert_eq!(v[4].1.to_str().unwrap(), "/f");
+    }
+
+    #[test]
+    fn pathhashlist_sort_hash_last_byte() {
+        let mut v: Vec<([u8; 32], PathBuf)> = vec![
+            (
+                [
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 7,
+                ],
+                Path::new("/seven").to_owned(),
+            ),
+            (
+                [
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 0xD,
+                ],
+                Path::new("/d").to_owned(),
+            ),
+            (
+                [
+                    0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+                    0, 0, 0, 0, 0, 2,
+                ],
+                Path::new("/two").to_owned(),
+            ),
+        ];
+
+        PathHashList::<PathHashSpy>::sort_hashable_data_vec(&mut v);
+
+        assert_eq!(v[0].1.to_str().unwrap(), "/two");
+        assert_eq!(v[1].1.to_str().unwrap(), "/seven");
+        assert_eq!(v[2].1.to_str().unwrap(), "/d");
+    }
+
+    #[test]
+    fn pathhashlist_sort_hash_path() {
+        let mut v: Vec<([u8; 32], PathBuf)> = vec![
+            ([0; 32], Path::new("ä_umlaut").to_owned()),
+            ([0; 32], Path::new("8").to_owned()),
+            ([0; 32], Path::new("\\backslash").to_owned()),
+            ([0; 32], Path::new("\"quote").to_owned()),
+            ([0; 32], Path::new("?question mark").to_owned()),
+            ([0; 32], Path::new("T").to_owned()),
+            ([0; 32], Path::new("_underscore").to_owned()),
+            ([0; 32], Path::new("7").to_owned()),
+            ([0; 32], Path::new("a").to_owned()),
+            ([0; 32], Path::new("(parens)").to_owned()),
+            ([0; 32], Path::new("|pipe").to_owned()),
+            ([0; 32], Path::new("*asterisk").to_owned()),
+            ([0; 32], Path::new("-hyphen").to_owned()),
+            ([0; 32], Path::new("~tilde").to_owned()),
+            ([0; 32], Path::new("<angle brackets>").to_owned()),
+            ([0; 32], Path::new("{braces}").to_owned()),
+            ([0; 32], Path::new("[brackets]").to_owned()),
+            ([0; 32], Path::new("d").to_owned()),
+            ([0; 32], Path::new("B").to_owned()),
+        ];
+
+        PathHashList::<PathHashSpy>::sort_hashable_data_vec(&mut v);
+
+        assert_eq!(v[0].1.to_str().unwrap(), "\"quote");
+        assert_eq!(v[1].1.to_str().unwrap(), "(parens)");
+        assert_eq!(v[2].1.to_str().unwrap(), "*asterisk");
+        assert_eq!(v[3].1.to_str().unwrap(), "-hyphen");
+        assert_eq!(v[4].1.to_str().unwrap(), "7");
+        assert_eq!(v[5].1.to_str().unwrap(), "8");
+        assert_eq!(v[6].1.to_str().unwrap(), "<angle brackets>");
+        assert_eq!(v[7].1.to_str().unwrap(), "?question mark");
+        assert_eq!(v[8].1.to_str().unwrap(), "B");
+        assert_eq!(v[9].1.to_str().unwrap(), "T");
+        assert_eq!(v[10].1.to_str().unwrap(), "[brackets]");
+        assert_eq!(v[11].1.to_str().unwrap(), "\\backslash");
+        assert_eq!(v[12].1.to_str().unwrap(), "_underscore");
+        assert_eq!(v[13].1.to_str().unwrap(), "a");
+        assert_eq!(v[14].1.to_str().unwrap(), "d");
+        assert_eq!(v[15].1.to_str().unwrap(), "{braces}");
+        assert_eq!(v[16].1.to_str().unwrap(), "|pipe");
+        assert_eq!(v[17].1.to_str().unwrap(), "~tilde");
+        assert_eq!(v[18].1.to_str().unwrap(), "ä_umlaut");
     }
 }
