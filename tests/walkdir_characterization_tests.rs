@@ -12,7 +12,7 @@
 //! - Listing very deep directories
 //! - How to handle symlinks?
 
-use std::{fs::File, path::Path};
+use std::{fs::File, os::unix, path::Path};
 use tempfile::{tempdir, TempDir};
 use walkdir::WalkDir;
 
@@ -89,6 +89,8 @@ fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
 ///         ├── 1
 ///         └── 2
 /// ```
+///
+/// Resulting file count: L1F + L1D * (L2F + L2D * L3F)
 fn creating_tempdir(
     l1_files: usize,
     l1_dirs: &[&str],
@@ -123,21 +125,23 @@ fn creating_tempdir(
     dir
 }
 
-fn get_filecount(path: impl AsRef<Path>) -> usize {
+fn get_filecount(path: impl AsRef<Path>, count_symlinks: bool) -> usize {
     WalkDir::new(path)
+        .follow_links(count_symlinks)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| !e.file_type().is_dir())
+        .filter(|e| e.file_type().is_file())
         .count()
 }
 
-fn get_filecount_at_depth(path: impl AsRef<Path>, depth: usize) -> usize {
+fn get_filecount_at_depth(path: impl AsRef<Path>, count_symlinks: bool, depth: usize) -> usize {
     WalkDir::new(path)
+        .follow_links(count_symlinks)
         .min_depth(depth)
         .max_depth(depth)
         .into_iter()
         .filter_map(Result::ok)
-        .filter(|e| !e.file_type().is_dir())
+        .filter(|e| e.file_type().is_file())
         .count()
 }
 
@@ -146,10 +150,10 @@ fn get_filecount_at_depth(path: impl AsRef<Path>, depth: usize) -> usize {
 fn three_level_dir() {
     let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
 
-    assert_eq!(get_filecount(&dir), 49);
-    assert_eq!(get_filecount_at_depth(&dir, 1), 4);
-    assert_eq!(get_filecount_at_depth(&dir, 2), 18);
-    assert_eq!(get_filecount_at_depth(&dir, 3), 27);
+    assert_eq!(get_filecount(&dir, false), 49);
+    assert_eq!(get_filecount_at_depth(&dir, false, 1), 4);
+    assert_eq!(get_filecount_at_depth(&dir, false, 2), 18);
+    assert_eq!(get_filecount_at_depth(&dir, false, 3), 27);
 
     dir.close().expect("Can't close tempdir");
 }
@@ -166,10 +170,10 @@ fn three_level_dir_with_hidden() {
     File::create(dir.path().join("b/y/.hidden")).expect("Error while creating hidden file");
     File::create(dir.path().join("b/z/.hidden")).expect("Error while creating hidden file");
 
-    assert_eq!(get_filecount(&dir), 24);
-    assert_eq!(get_filecount_at_depth(&dir, 1), 3);
-    assert_eq!(get_filecount_at_depth(&dir, 2), 10);
-    assert_eq!(get_filecount_at_depth(&dir, 3), 11);
+    assert_eq!(get_filecount(&dir, false), 24);
+    assert_eq!(get_filecount_at_depth(&dir, false, 1), 3);
+    assert_eq!(get_filecount_at_depth(&dir, false, 2), 10);
+    assert_eq!(get_filecount_at_depth(&dir, false, 3), 11);
 
     dir.close().expect("Can't close tempdir");
 }
@@ -190,10 +194,10 @@ fn three_level_dir_with_special() {
     // disallows 0 (NULL byte). However, I don't feel like testing control characters. Adding them
     // to filenames is insane anyway...
 
-    assert_eq!(get_filecount(&dir), 51);
-    assert_eq!(get_filecount_at_depth(&dir, 1), 6);
-    assert_eq!(get_filecount_at_depth(&dir, 2), 10);
-    assert_eq!(get_filecount_at_depth(&dir, 3), 35);
+    assert_eq!(get_filecount(&dir, false), 51);
+    assert_eq!(get_filecount_at_depth(&dir, false, 1), 6);
+    assert_eq!(get_filecount_at_depth(&dir, false, 2), 10);
+    assert_eq!(get_filecount_at_depth(&dir, false, 3), 35);
 
     dir.close().expect("Can't close tempdir");
 }
@@ -209,10 +213,102 @@ fn three_level_dir_with_many_files() {
         1034,
     );
 
-    assert_eq!(get_filecount(&dir), 49242);
-    assert_eq!(get_filecount_at_depth(&dir, 1), 504);
-    assert_eq!(get_filecount_at_depth(&dir, 2), 5310);
-    assert_eq!(get_filecount_at_depth(&dir, 3), 43428);
+    assert_eq!(get_filecount(&dir, false), 49242);
+    assert_eq!(get_filecount_at_depth(&dir, false, 1), 504);
+    assert_eq!(get_filecount_at_depth(&dir, false, 2), 5310);
+    assert_eq!(get_filecount_at_depth(&dir, false, 3), 43428);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// #[ignore = "will ichs chan"]
+#[test]
+fn three_level_dir_with_file_symlinks() {
+    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+
+    // file downwards
+    unix::fs::symlink(dir.path().join("a/x/0"), dir.path().join("downwards_link"))
+        .expect("Error while creating symlink");
+
+    // file upwards
+    unix::fs::symlink(dir.path().join("1"), dir.path().join("b/y/upwards_link"))
+        .expect("Error while creating symlink");
+
+    // not following links
+    assert_eq!(get_filecount(&dir, false), 49);
+    assert_eq!(get_filecount_at_depth(&dir, false, 1), 4);
+    assert_eq!(get_filecount_at_depth(&dir, false, 2), 18);
+    assert_eq!(get_filecount_at_depth(&dir, false, 3), 27);
+
+    // following links (filetype of symlink is the same as target)
+    assert_eq!(get_filecount(&dir, true), 51); // +2 file symlinks
+    assert_eq!(get_filecount_at_depth(&dir, true, 1), 5); // downwards_link
+    assert_eq!(get_filecount_at_depth(&dir, true, 2), 18);
+    assert_eq!(get_filecount_at_depth(&dir, true, 3), 28); // upwards_link
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// #[ignore = "will ichs chan"]
+#[test]
+fn three_level_dir_with_file_symlink_loop() {
+    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+
+    // file downwards
+    unix::fs::symlink(
+        dir.path().join("a/upwards_link"),
+        dir.path().join("downwards_link"),
+    )
+    .expect("Error while creating symlink");
+
+    // file upwards
+    unix::fs::symlink(
+        dir.path().join("downwards_link"),
+        dir.path().join("a/upwards_link"),
+    )
+    .expect("Error while creating symlink");
+
+    // not following links
+    assert_eq!(get_filecount(&dir, false), 49);
+    assert_eq!(get_filecount_at_depth(&dir, false, 1), 4);
+    assert_eq!(get_filecount_at_depth(&dir, false, 2), 18);
+    assert_eq!(get_filecount_at_depth(&dir, false, 3), 27);
+
+    // following links, but links that result in loops result in Err() and are discarded
+    assert_eq!(get_filecount(&dir, true), 49);
+    assert_eq!(get_filecount_at_depth(&dir, true, 1), 4);
+    assert_eq!(get_filecount_at_depth(&dir, true, 2), 18);
+    assert_eq!(get_filecount_at_depth(&dir, true, 3), 27);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// #[ignore = "will ichs chan"]
+#[test]
+fn three_level_dir_with_dir_symlinks() {
+    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+
+    // dir downwards
+    unix::fs::symlink(dir.path().join("a/x"), dir.path().join("downwards_link"))
+        .expect("Error while creating symlink");
+
+    // dir upwards
+    unix::fs::symlink(dir.path(), dir.path().join("b/y/upwards_link"))
+        .expect("Error while creating symlink");
+
+    // not following links
+    assert_eq!(get_filecount(&dir, false), 49);
+    assert_eq!(get_filecount_at_depth(&dir, false, 1), 4);
+    assert_eq!(get_filecount_at_depth(&dir, false, 2), 18);
+    assert_eq!(get_filecount_at_depth(&dir, false, 3), 27);
+
+    // following links (filetype of symlink is the same as target, i.e., directory. thus, symlink
+    // doesn't get counted but all the files that are located in that target folder)
+    // upwards_link results in error because loop is detected
+    assert_eq!(get_filecount(&dir, true), 52); // 3 more files from following downward_link, e.g. ./downwards_link/0
+    assert_eq!(get_filecount_at_depth(&dir, true, 1), 4);
+    assert_eq!(get_filecount_at_depth(&dir, true, 2), 21); // ./downwards_link/0, ./downwards_link/1, ./downwards_link/2
+    assert_eq!(get_filecount_at_depth(&dir, true, 3), 27);
 
     dir.close().expect("Can't close tempdir");
 }
