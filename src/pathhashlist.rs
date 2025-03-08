@@ -9,7 +9,7 @@ use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 
-use crate::pathhash::PathHashProvider;
+use crate::pathhash::{PathHash, PathHashProvider};
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PathHashList<T> {
@@ -114,6 +114,16 @@ where
 
     fn sort_hashable_data_vec(vec: &mut Vec<([u8; 32], PathBuf)>) {
         vec.sort();
+    }
+}
+
+impl PathHashList<PathHash> {
+    pub fn from_path_recursive(path: &Path) -> Result<Self, std::io::Error> {
+        let files: Vec<PathHash> = vec![];
+        Ok(PathHashList {
+            pathhashvec: files,
+            hash: None,
+        })
     }
 }
 
