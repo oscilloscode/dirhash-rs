@@ -13,117 +13,9 @@
 //! - How to handle symlinks?
 
 use std::{fs::File, os::unix, path::Path};
-use tempfile::{tempdir, TempDir};
 use walkdir::WalkDir;
 
-fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
-    for i in 0..n {
-        let _ =
-            File::create(dir.as_ref().join(format!("{}", i))).expect("Error while creating file");
-    }
-}
-
-/// Creates the following directory structure for creating_tempdir(4, &["a", "b", "c"][..], 6,
-/// &["x", "y", "z"][..], 3):
-/// ```
-/// tmpbSlLgw/
-/// ├── 0
-/// ├── 1
-/// ├── 2
-/// ├── 3
-/// ├── a
-/// │   ├── 0
-/// │   ├── 1
-/// │   ├── 2
-/// │   ├── 3
-/// │   ├── 4
-/// │   ├── 5
-/// │   ├── x
-/// │   │   ├── 0
-/// │   │   ├── 1
-/// │   │   └── 2
-/// │   ├── y
-/// │   │   ├── 0
-/// │   │   ├── 1
-/// │   │   └── 2
-/// │   └── z
-/// │       ├── 0
-/// │       ├── 1
-/// │       └── 2
-/// ├── b
-/// │   ├── 0
-/// │   ├── 1
-/// │   ├── 2
-/// │   ├── 3
-/// │   ├── 4
-/// │   ├── 5
-/// │   ├── x
-/// │   │   ├── 0
-/// │   │   ├── 1
-/// │   │   └── 2
-/// │   ├── y
-/// │   │   ├── 0
-/// │   │   ├── 1
-/// │   │   └── 2
-/// │   └── z
-/// │       ├── 0
-/// │       ├── 1
-/// │       └── 2
-/// └── c
-///     ├── 0
-///     ├── 1
-///     ├── 2
-///     ├── 3
-///     ├── 4
-///     ├── 5
-///     ├── x
-///     │   ├── 0
-///     │   ├── 1
-///     │   └── 2
-///     ├── y
-///     │   ├── 0
-///     │   ├── 1
-///     │   └── 2
-///     └── z
-///         ├── 0
-///         ├── 1
-///         └── 2
-/// ```
-///
-/// Resulting file count: L1F + L1D * (L2F + L2D * L3F)
-fn creating_tempdir(
-    l1_files: usize,
-    l1_dirs: &[&str],
-    l2_files: usize,
-    l2_dirs: &[&str],
-    l3_files: usize,
-) -> TempDir {
-    let dir = tempdir().expect("Can't create tempdir");
-    // let dir = tempfile::Builder::new()
-    //     .keep(true)
-    //     .tempdir()
-    //     .expect("Can't create tempdir");
-
-    create_numbered_files(&dir, l1_files);
-
-    for d in l1_dirs.iter() {
-        let dir_level_1 = dir.path().join(d.to_string());
-        std::fs::create_dir(&dir_level_1)
-            .expect(&format!("Error while creating directory {:?}", dir_level_1));
-
-        create_numbered_files(&dir_level_1, l2_files);
-
-        for d in l2_dirs.iter() {
-            let dir_level_2 = dir_level_1.join(d.to_string());
-            std::fs::create_dir(&dir_level_2)
-                .expect(&format!("Error while creating directory {:?}", dir_level_2));
-
-            create_numbered_files(&dir_level_2, l3_files);
-        }
-    }
-
-    dir
-}
+mod common;
 
 fn get_filecount(path: impl AsRef<Path>, count_symlinks: bool) -> usize {
     WalkDir::new(path)
@@ -148,7 +40,7 @@ fn get_filecount_at_depth(path: impl AsRef<Path>, count_symlinks: bool, depth: u
 // #[ignore = "will ichs chan"]
 #[test]
 fn three_level_dir() {
-    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+    let dir = common::creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
 
     assert_eq!(get_filecount(&dir, false), 49);
     assert_eq!(get_filecount_at_depth(&dir, false, 1), 4);
@@ -161,7 +53,7 @@ fn three_level_dir() {
 // #[ignore = "will ichs chan"]
 #[test]
 fn three_level_dir_with_hidden() {
-    let dir = creating_tempdir(2, &["a", "b"][..], 4, &["w", "x", "y", "z"][..], 1);
+    let dir = common::creating_tempdir(2, &["a", "b"][..], 4, &["w", "x", "y", "z"][..], 1);
 
     File::create(dir.path().join(".gitignore")).expect("Error while creating hidden file");
     File::create(dir.path().join("a/.hidden")).expect("Error while creating hidden file");
@@ -181,7 +73,7 @@ fn three_level_dir_with_hidden() {
 // #[ignore = "will ichs chan"]
 #[test]
 fn three_level_dir_with_special() {
-    let dir = creating_tempdir(5, &["a", "b", "c", "d"][..], 2, &["y", "z"][..], 4);
+    let dir = common::creating_tempdir(5, &["a", "b", "c", "d"][..], 2, &["y", "z"][..], 4);
 
     // Printable characters, that are forbidden in Windows but allowed in Linux.
     File::create(dir.path().join("<angle brackets>")).expect("Error while creating hidden file");
@@ -205,7 +97,7 @@ fn three_level_dir_with_special() {
 // #[ignore = "will ichs chan"]
 #[test]
 fn three_level_dir_with_many_files() {
-    let dir = creating_tempdir(
+    let dir = common::creating_tempdir(
         504,
         &["a", "b", "c", "d", "e", "f"][..],
         885,
@@ -224,7 +116,7 @@ fn three_level_dir_with_many_files() {
 // #[ignore = "will ichs chan"]
 #[test]
 fn three_level_dir_with_file_symlinks() {
-    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+    let dir = common::creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
 
     // file downwards
     unix::fs::symlink(dir.path().join("a/x/0"), dir.path().join("downwards_link"))
@@ -252,7 +144,7 @@ fn three_level_dir_with_file_symlinks() {
 // #[ignore = "will ichs chan"]
 #[test]
 fn three_level_dir_with_file_symlink_loop() {
-    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+    let dir = common::creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
 
     // file downwards
     unix::fs::symlink(
@@ -286,7 +178,7 @@ fn three_level_dir_with_file_symlink_loop() {
 // #[ignore = "will ichs chan"]
 #[test]
 fn three_level_dir_with_dir_symlinks() {
-    let dir = creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
+    let dir = common::creating_tempdir(4, &["a", "b", "c"][..], 6, &["x", "y", "z"][..], 3);
 
     // dir downwards
     unix::fs::symlink(dir.path().join("a/x"), dir.path().join("downwards_link"))
