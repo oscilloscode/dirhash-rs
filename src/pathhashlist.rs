@@ -8,6 +8,7 @@ use std::fmt::Write;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
+use walkdir::WalkDir;
 
 use crate::pathhash::{PathHash, PathHashProvider};
 
@@ -118,8 +119,32 @@ where
 }
 
 impl PathHashList<PathHash> {
-    pub fn from_path_recursive(path: &Path) -> Result<Self, std::io::Error> {
-        let files: Vec<PathHash> = vec![];
+    // TODO:
+    // A builder pattern is probably more suitable. This would also allow options like following
+    // symlinks etc. to be more descriptive and idiomatic.
+    pub fn from_path_recursive(path: &Path, follow_symlinks: bool) -> Result<Self, std::io::Error> {
+        let mut files: Vec<PathHash> = vec![];
+
+        // WalkDir::new(path)
+        //     .follow_links(follow_symlinks)
+        //     .into_iter()
+        //     .filter_map(Result::ok)
+        //     .filter(|e| e.file_type().is_file())
+        //     .count();
+
+        for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
+            let entry = entry?;
+            println!("{:?}", entry);
+            // TODO:
+            // Or should I just filter for files? How are symlinks affected by this?
+            if entry.file_type().is_dir() {
+                continue;
+            }
+
+            let pathhash = PathHash::new(entry.path())?;
+            files.push(pathhash);
+        }
+
         Ok(PathHashList {
             pathhashvec: files,
             hash: None,

@@ -14,7 +14,7 @@ fn create_from_path_recursively() {
     let dir = common::creating_tempdir(2, &["a", "b"][..], 1, &["x", "y"][..], 2);
 
     let mut pathhashlist =
-        PathHashList::from_path_recursive(dir.path()).expect("Can't create PathHashList");
+        PathHashList::from_path_recursive(dir.path(), false).expect("Can't create PathHashList");
 
     assert!(pathhashlist.compute_hash().is_ok());
 
