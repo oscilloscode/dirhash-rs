@@ -123,14 +123,14 @@ mod tests {
     use crate::pathhash::pathhashspy::PathHashSpy;
 
     #[test]
-    fn pathhashlist_hash_is_none_after_init() {
+    fn hash_is_none_after_init() {
         let spies: Vec<PathHashSpy> = vec![];
         let pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
         assert!(pathhashlist.hash.is_none());
     }
 
     #[test]
-    fn pathhashlist_hash_accessor() {
+    fn hash_accessor() {
         let spies: Vec<PathHashSpy> = vec![];
         let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
         assert!(pathhashlist.hash().is_none());
@@ -140,7 +140,7 @@ mod tests {
     }
 
     #[test]
-    fn pathhashlist_compute_hash() {
+    fn compute_hash() {
         let spies = vec![
             PathHashSpy::new(
                 Path::new("/some/path").to_owned(),
@@ -169,7 +169,7 @@ mod tests {
     }
 
     #[test]
-    fn pathhashlist_compute_hash_computes_underlying_hash_only_when_necessary() {
+    fn compute_hash_computes_underlying_hash_only_when_necessary() {
         let spies = vec![
             PathHashSpy::new(
                 Path::new("/some/path").to_owned(),
@@ -198,7 +198,7 @@ mod tests {
     }
 
     #[test]
-    fn pathhashlist_compute_hash_no_files() {
+    fn compute_hash_no_files() {
         let spies: Vec<PathHashSpy> = vec![];
         let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
 
@@ -211,7 +211,7 @@ mod tests {
     }
 
     #[test]
-    fn pathhashlist_sort_hash_first_byte() {
+    fn sort_hash_first_byte() {
         let mut v: Vec<([u8; 32], PathBuf)> = vec![
             (
                 [
@@ -260,7 +260,7 @@ mod tests {
     }
 
     #[test]
-    fn pathhashlist_sort_hash_last_byte() {
+    fn sort_hash_last_byte() {
         let mut v: Vec<([u8; 32], PathBuf)> = vec![
             (
                 [
@@ -293,7 +293,7 @@ mod tests {
     }
 
     #[test]
-    fn pathhashlist_sort_hash_path() {
+    fn sort_hash_path() {
         let mut v: Vec<([u8; 32], PathBuf)> = vec![
             ([0; 32], Path::new("ä_umlaut").to_owned()),
             ([0; 32], Path::new("8").to_owned()),
