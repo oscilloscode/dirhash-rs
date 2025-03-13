@@ -27,11 +27,11 @@ impl PathHash {
     /// Creates a [`PathHash`] from a path to a file on the system.
     /// Returns an [`std::io::Error`] if the file doesn't exist because the path gets canonicalized
     /// (which fails if the file doesn't exist).
-    pub fn new(path: impl AsRef<Path>) -> Self {
-        PathHash {
-            path: path.as_ref().to_owned(),
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
+        Ok(PathHash {
+            path: path.as_ref().canonicalize()?,
             hash: Default::default(),
-        }
+        })
     }
 }
 
@@ -138,7 +138,8 @@ mod tests {
 
     fn check_compute_hash(content: TestFileContent) {
         let testfile = get_testfile(content);
-        let mut pathhash = PathHash::new(testfile.file.path());
+        let mut pathhash =
+            PathHash::new(testfile.file.path()).expect("Can't create PathHash from existing file");
         assert!(pathhash.hash().is_none());
         assert!(pathhash.compute_hash().is_ok());
         assert_eq!(*pathhash.hash().unwrap(), testfile.test_vector.hash);
@@ -160,17 +161,16 @@ mod tests {
     }
 
     #[test]
-    fn compute_hash_from_non_existent() {
-        let mut pathhash = PathHash::new(Path::new("/oiweisliejfliajseflij"));
-        assert!(pathhash.hash().is_none());
-        let err = pathhash.compute_hash().unwrap_err();
-        assert_eq!(err.kind(), std::io::ErrorKind::NotFound);
+    fn create_pathhash_from_non_existent() {
+        let pathhash = PathHash::new(Path::new("/oiweisliejfliajseflij"));
+        assert!(pathhash.is_err());
     }
 
     #[test]
     fn create_pathhash_from_existent() {
         let testfile = get_testfile(TestFileContent::SingleLine);
-        let pathhash = PathHash::new(testfile.file.path());
+        let pathhash =
+            PathHash::new(testfile.file.path()).expect("Can't create PathHash from existing file");
         assert_eq!(pathhash.path(), testfile.file.path());
     }
 

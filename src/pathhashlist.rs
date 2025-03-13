@@ -103,7 +103,6 @@ where
         let mut hashable_data_vec: Vec<([u8; 32], PathBuf)> =
             Vec::with_capacity(self.pathhashvec.len());
 
-        // TODO: Why is this named pb?
         for pb in &mut self.pathhashvec {
             if pb.hash().is_none() {
                 pb.compute_hash()?;
@@ -142,7 +141,7 @@ impl PathHashList<PathHash> {
                 continue;
             }
 
-            let pathhash = PathHash::new(entry.path());
+            let pathhash = PathHash::new(entry.path())?;
             files.push(pathhash);
         }
 
