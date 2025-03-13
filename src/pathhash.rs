@@ -4,6 +4,7 @@
 
 use std::{
     fs,
+    io::{Error, ErrorKind},
     path::{Path, PathBuf},
 };
 
@@ -13,7 +14,7 @@ use sha2::{Digest, Sha256};
 pub trait PathHashProvider {
     fn path(&self) -> &Path;
     fn hash(&self) -> Option<&[u8; 32]>;
-    fn compute_hash(&mut self) -> Result<(), std::io::Error>;
+    fn compute_hash(&mut self) -> Result<(), Error>;
 }
 
 /// Struct containing a path and hash from a file on the filesystem.
@@ -25,11 +26,22 @@ pub struct PathHash {
 
 impl PathHash {
     /// Creates a [`PathHash`] from a path to a file on the system.
-    /// Returns an [`std::io::Error`] if the file doesn't exist because the path gets canonicalized
-    /// (which fails if the file doesn't exist).
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, std::io::Error> {
+    ///
+    /// Returns an [`std::io::Error`] if the file doesn't exist or if it isn't absolute. Symlinks
+    /// are not resolved ant thus the `canonicalize` method of [`std::path::Path`] can't be used.
+    ///
+    /// Currently, `..` and `.` are not resolved.
+    pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
+        if !path.as_ref().exists() {
+            return Err(Error::new(ErrorKind::NotFound, "file not found"));
+        }
+
+        if !path.as_ref().is_absolute() {
+            return Err(Error::new(ErrorKind::InvalidInput, "path not absolute"));
+        }
+
         Ok(PathHash {
-            path: path.as_ref().canonicalize()?,
+            path: path.as_ref().to_owned(),
             hash: Default::default(),
         })
     }
@@ -38,7 +50,7 @@ impl PathHash {
 impl PathHashProvider for PathHash {
     /// Computes the SHA256 hash of the contents of the corresponding file and stores it. Calling
     /// this method again will reread the file and recompute the hash value.
-    fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+    fn compute_hash(&mut self) -> Result<(), Error> {
         let data = fs::read(&self.path)?;
         let hash = Sha256::digest(data);
         self.hash = Some(hash.into());
@@ -161,9 +173,15 @@ mod tests {
     }
 
     #[test]
-    fn create_pathhash_from_non_existent() {
-        let pathhash = PathHash::new(Path::new("/oiweisliejfliajseflij"));
-        assert!(pathhash.is_err());
+    fn create_pathhash_not_found() {
+        let err = PathHash::new(Path::new("/oiweisliejfliajseflij")).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+
+    #[test]
+    fn create_pathhash_not_absolute() {
+        let err = PathHash::new(Path::new(".")).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::InvalidInput);
     }
 
     #[test]
@@ -172,6 +190,15 @@ mod tests {
         let pathhash =
             PathHash::new(testfile.file.path()).expect("Can't create PathHash from existing file");
         assert_eq!(pathhash.path(), testfile.file.path());
+    }
+
+    // TODO:
+    // Use a create a symlink to tempfile and use this.
+    #[test]
+    fn create_pathhash_from_symlink() {
+        let path = Path::new("/home/mario/.editorconfig");
+        let pathhash = PathHash::new(path).unwrap();
+        assert_eq!(path, pathhash.path());
     }
 
     #[test]
