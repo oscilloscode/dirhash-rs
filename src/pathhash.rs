@@ -73,10 +73,12 @@ impl PathHashProvider for PathHash {
 mod tests {
     use std::collections::HashMap;
     use std::io::{Read, Seek, Write};
+    use std::os::unix;
     use std::sync::OnceLock;
 
     use super::*;
-    use tempfile::NamedTempFile;
+    use fs::File;
+    use tempfile::{tempdir, NamedTempFile};
 
     #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
     struct TestVector {
@@ -192,13 +194,34 @@ mod tests {
         assert_eq!(pathhash.path(), testfile.file.path());
     }
 
-    // TODO:
-    // Use a create a symlink to tempfile and use this.
     #[test]
-    fn create_pathhash_from_symlink() {
-        let path = Path::new("/home/mario/.editorconfig");
-        let pathhash = PathHash::new(path).unwrap();
-        assert_eq!(path, pathhash.path());
+    fn create_and_hash_symlink() {
+        let dir = tempdir().expect("Can't create tempdir");
+        // let dir = tempfile::Builder::new()
+        //     .keep(true)
+        //     .tempdir()
+        //     .expect("Can't create tempdir");
+
+        let datafile_path = dir.as_ref().join("datafile");
+        let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+        write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+        let symlink_path = dir.path().join("symlink");
+        unix::fs::symlink(datafile_path, &symlink_path).expect("Error while creating symlink");
+
+        let symlink_data =
+            fs::read_to_string(&symlink_path).expect("Error while reading data from symlink");
+        assert_eq!(symlink_data, "test data");
+
+        let mut pathhash = PathHash::new(&symlink_path).unwrap();
+        assert_eq!(symlink_path, pathhash.path());
+
+        assert!(pathhash.hash().is_none());
+        assert!(pathhash.compute_hash().is_ok());
+        assert_eq!(pathhash.hash().unwrap(), b"\x91\x6f\x00\x27\xa5\x75\x07\x4c\xe7\x2a\x33\x17\x77\xc3\x47\x8d\x65\x13\xf7\x86\xa5\x91\xbd\x89\x2d\xa1\xa5\x77\xbf\x23\x35\xf9");
+
+        dir.close().expect("Can't close tempdir");
     }
 
     #[test]
