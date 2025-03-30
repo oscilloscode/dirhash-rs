@@ -4,7 +4,9 @@
 //! - Add tests to check that sort() behaves as expected (both for the hash and the path)
 //!
 
+use std::borrow::Cow;
 use std::fmt::Write;
+use std::io::Error;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
@@ -12,8 +14,12 @@ use walkdir::WalkDir;
 
 use crate::pathhash::{PathHash, PathHashProvider};
 
+// Maybe it's better to get rid of getters and just make root and hash public... If root is public,
+// could a user of the struct then just reassign the member? Or can I somehow make it public but
+// immutable/irreplaceable?
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PathHashList<T> {
+    root: Option<PathBuf>,
     pathhashvec: Vec<T>,
     hash: Option<[u8; 32]>,
 }
@@ -22,12 +28,17 @@ impl<T> PathHashList<T>
 where
     T: PathHashProvider,
 {
-    pub fn new(files: Vec<T>) -> Result<Self, std::io::Error> {
+    pub fn new(files: Vec<T>, root: Option<&Path>) -> Result<Self, std::io::Error> {
         // Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no!"))
         Ok(PathHashList {
+            root: root.map(|p| p.to_owned()),
             pathhashvec: files,
             hash: None,
         })
+    }
+
+    pub fn root(&self) -> Option<&Path> {
+        self.root.as_ref().map(|p| p.as_path())
     }
 
     pub fn hash(&self) -> Option<&[u8; 32]> {
@@ -56,13 +67,30 @@ where
         let mut hasher = Sha256::new();
         let mut hashable_string = String::new();
 
+        // TODO:
+        // It would probably be a good idea to create a type ("HashTable" or something like that)
+        // which stores the hash/path pairs, implements the sorting logic, implements to_str(), and
+        // other stuff. I need to be able to return the hash table anyway at some point, because the
+        // hash over all the files is probably not enought for all the use cases.
         for (hash, path) in hashable_data_vec {
             hashable_string.clear();
+
+            let hex_hash = hex::encode(hash);
+            let maybe_stripped_path = match &self.root {
+                Some(root) => {
+                    Cow::from("./")
+                        + path
+                            .strip_prefix(root)
+                            .map_err(|e| Error::other(e))? // TODO: fix with thiserror or anyhow
+                            .to_string_lossy()
+                }
+                None => path.to_string_lossy(),
+            };
+
             let _ = writeln!(
                 &mut hashable_string,
                 "{}  {}",
-                hex::encode(hash),
-                path.to_string_lossy()
+                hex_hash, maybe_stripped_path
             );
 
             hasher.update(&hashable_string);
@@ -85,11 +113,22 @@ where
         let mut hashable_string = String::new();
 
         for (hash, path) in hashable_data_vec {
+            let hex_hash = hex::encode(hash);
+            let maybe_stripped_path = match &self.root {
+                Some(root) => {
+                    Cow::from("./")
+                        + path
+                            .strip_prefix(root)
+                            .map_err(|e| Error::other(e))? // TODO: fix with thiserror or anyhow
+                            .to_string_lossy()
+                }
+                None => path.to_string_lossy(),
+            };
+
             let _ = writeln!(
                 &mut hashable_string,
                 "{}  {}",
-                hex::encode(hash),
-                path.to_string_lossy()
+                hex_hash, maybe_stripped_path
             );
         }
 
@@ -120,8 +159,9 @@ where
 
 impl PathHashList<PathHash> {
     // TODO:
-    // A builder pattern is probably more suitable. This would also allow options like following
-    // symlinks etc. to be more descriptive and idiomatic.
+    // - A builder pattern is probably more suitable. This would also allow options like following
+    //   symlinks etc. to be more descriptive and idiomatic.
+    // - Add bool parameter for absolute paths?
     pub fn from_path_recursive(path: &Path, follow_symlinks: bool) -> Result<Self, std::io::Error> {
         let mut files: Vec<PathHash> = vec![];
 
@@ -146,6 +186,7 @@ impl PathHashList<PathHash> {
         }
 
         Ok(PathHashList {
+            root: None,
             pathhashvec: files,
             hash: None,
         })
@@ -154,20 +195,51 @@ impl PathHashList<PathHash> {
 
 #[cfg(test)]
 mod tests {
+    use std::io::ErrorKind;
+
     use super::*;
     use crate::pathhash::pathhashspy::PathHashSpy;
 
     #[test]
+    fn new() {
+        let spies = vec![
+            PathHashSpy::new(Path::new("/some/path").to_owned(), None, None),
+            PathHashSpy::new(Path::new("/other/path").to_owned(), None, None),
+        ];
+        let pathhashlist = PathHashList::new(spies, Some(Path::new("/some/path")))
+            .expect("Can't create PathHashList");
+        assert_eq!(pathhashlist.root.unwrap().to_str().unwrap(), "/some/path");
+        assert_eq!(
+            pathhashlist.pathhashvec[0].path().to_str().unwrap(),
+            "/some/path"
+        );
+        assert_eq!(
+            pathhashlist.pathhashvec[1].path().to_str().unwrap(),
+            "/other/path"
+        );
+    }
+
+    #[test]
+    fn root_getter() {
+        let spies: Vec<PathHashSpy> = vec![];
+        let mut pathhashlist = PathHashList::new(spies, Some(Path::new("/some/path")))
+            .expect("Can't create PathHashList");
+        assert_eq!(pathhashlist.root().unwrap().to_str().unwrap(), "/some/path");
+        pathhashlist.root = None;
+        assert!(pathhashlist.root().is_none());
+    }
+
+    #[test]
     fn hash_is_none_after_init() {
         let spies: Vec<PathHashSpy> = vec![];
-        let pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+        let pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
         assert!(pathhashlist.hash.is_none());
     }
 
     #[test]
-    fn hash_accessor() {
+    fn hash_getter() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
         assert!(pathhashlist.hash().is_none());
         pathhashlist.hash = Some(*b"01234567890123456789012345678901");
         assert!(pathhashlist.hash().is_some());
@@ -175,7 +247,7 @@ mod tests {
     }
 
     #[test]
-    fn compute_hash() {
+    fn compute_hash_no_root() {
         let spies = vec![
             PathHashSpy::new(
                 Path::new("/some/path").to_owned(),
@@ -188,7 +260,7 @@ mod tests {
                 None,
             ),
         ];
-        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
         assert!(pathhashlist.compute_hash().is_ok());
 
@@ -201,6 +273,61 @@ mod tests {
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
         assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
+    }
+
+    #[test]
+    fn compute_hash_with_root() {
+        let spies = vec![
+            PathHashSpy::new(
+                Path::new("/pre/fix/some/path").to_owned(),
+                Some(*b"\xba\xcb\xe3\xc3\x46\xcb\x5c\xb0\xcf\x30\xdb\x33\xad\xc7\xd4\x10\x49\x36\x44\xaa\xfe\x98\xe0\x8e\x0e\x27\x9b\xb3\x5b\x57\x92\x8a"), // hash of "./some/path"
+                None,
+            ),
+            PathHashSpy::new(
+                Path::new("/pre/fix/other/path").to_owned(),
+                Some(*b"\x62\x09\xe5\xaa\x71\x50\xa1\xc6\xee\x59\x2f\x0a\x7f\x6a\x32\xe1\xcb\x74\x93\x33\xcb\x90\x6a\xbf\xfb\x5e\x65\x5e\x04\x91\xc6\x88"), // hash of "./other/path"
+                None,
+            ),
+        ];
+        let mut pathhashlist = PathHashList::new(spies, Some(Path::new("/pre/fix")))
+            .expect("Can't create PathHashList");
+
+        assert!(pathhashlist.compute_hash().is_ok());
+
+        assert_eq!(pathhashlist.pathhashvec[0].call_count_compute_hash(), 0);
+        assert_eq!(pathhashlist.pathhashvec[1].call_count_compute_hash(), 0);
+
+        // Hash of (the newline after the second line is also part of the digest):
+        //
+        // 6209e5aa7150a1c6ee592f0a7f6a32e1cb749333cb906abffb5e655e0491c688  ./other/path
+        // bacbe3c346cb5cb0cf30db33adc7d410493644aafe98e08e0e279bb35b57928a  ./some/path
+        //
+        // -> 13f9a9ba4a18685d46498d4ac27f02ac0c70c8afe14220266032765633c39933
+        assert_eq!(
+            pathhashlist.hash().unwrap(),
+            b"\x13\xf9\xa9\xba\x4a\x18\x68\x5d\x46\x49\x8d\x4a\xc2\x7f\x02\xac\x0c\x70\xc8\xaf\xe1\x42\x20\x26\x60\x32\x76\x56\x33\xc3\x99\x33"
+        );
+    }
+
+    #[test]
+    fn compute_hash_with_mismatched_root() {
+        let spies = vec![
+            PathHashSpy::new(
+                Path::new("/pre/fix/some/path").to_owned(),
+                Some(*b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
+                None,
+            ),
+            PathHashSpy::new(
+                Path::new("/pre/fix/other/path").to_owned(),
+                Some(*b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
+                None,
+            ),
+        ];
+        let mut pathhashlist = PathHashList::new(spies, Some(Path::new("/not/prefix")))
+            .expect("Can't create PathHashList");
+
+        let err = pathhashlist.compute_hash().unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::Other); // TODO: Specifically check for StripPrefixError
     }
 
     #[test]
@@ -217,7 +344,7 @@ mod tests {
                 None,
             ),
         ];
-        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
         assert!(pathhashlist.compute_hash().is_ok());
 
@@ -235,7 +362,7 @@ mod tests {
     #[test]
     fn compute_hash_no_files() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
         assert!(pathhashlist.compute_hash().is_ok());
 
