@@ -162,7 +162,11 @@ impl PathHashList<PathHash> {
     // - A builder pattern is probably more suitable. This would also allow options like following
     //   symlinks etc. to be more descriptive and idiomatic.
     // - Add bool parameter for absolute paths?
-    pub fn from_path_recursive(path: &Path, follow_symlinks: bool) -> Result<Self, std::io::Error> {
+    pub fn from_path_recursive(
+        path: &Path,
+        set_root: bool,
+        follow_symlinks: bool,
+    ) -> Result<Self, std::io::Error> {
         let mut files: Vec<PathHash> = vec![];
 
         // WalkDir::new(path)
@@ -185,8 +189,14 @@ impl PathHashList<PathHash> {
             files.push(pathhash);
         }
 
+        let root = if set_root {
+            Some(path.to_owned())
+        } else {
+            None
+        };
+
         Ok(PathHashList {
-            root: None,
+            root,
             pathhashvec: files,
             hash: None,
         })

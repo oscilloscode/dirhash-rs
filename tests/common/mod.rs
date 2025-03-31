@@ -1,5 +1,5 @@
 use std::{fs::File, path::Path};
-use tempfile::{tempdir, TempDir};
+use tempfile::TempDir;
 
 fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
     for i in 0..n {
@@ -77,17 +77,25 @@ fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
 ///
 /// Resulting file count: L1F + L1D * (L2F + L2D * L3F)
 pub fn creating_tempdir(
+    dir_name: Option<String>,
     l1_files: usize,
     l1_dirs: &[&str],
     l2_files: usize,
     l2_dirs: &[&str],
     l3_files: usize,
 ) -> TempDir {
-    let dir = tempdir().expect("Can't create tempdir");
-    // let dir = tempfile::Builder::new()
-    //     .keep(true)
-    //     .tempdir()
-    //     .expect("Can't create tempdir");
+    let dir = match dir_name {
+        Some(dir_name) => tempfile::Builder::new()
+            // .keep(true)
+            .rand_bytes(0)
+            .prefix(&dir_name)
+            .tempdir()
+            .expect("Can't create tempdir"),
+        None => tempfile::Builder::new()
+            // .keep(true)
+            .tempdir()
+            .expect("Can't create tempdir"),
+    };
 
     create_numbered_files(&dir, l1_files);
 
