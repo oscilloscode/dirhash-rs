@@ -213,8 +213,8 @@ mod tests {
     #[test]
     fn new() {
         let spies = vec![
-            PathHashSpy::new(Path::new("/some/path").to_owned(), None, None),
-            PathHashSpy::new(Path::new("/other/path").to_owned(), None, None),
+            PathHashSpy::new("/some/path", None, None),
+            PathHashSpy::new("/other/path".to_owned(), None, None),
         ];
         let pathhashlist = PathHashList::new(spies, Some(Path::new("/some/path")))
             .expect("Can't create PathHashList");
@@ -260,12 +260,12 @@ mod tests {
     fn compute_hash_no_root() {
         let spies = vec![
             PathHashSpy::new(
-                Path::new("/some/path").to_owned(),
+                "/some/path",
                 Some(*b"\xd8\x3b\xa8\x04\x20\xec\x99\xbc\xb1\x43\xdf\x16\xa0\x0c\x39\xa5\x6c\x14\x03\x41\xe4\x44\x6a\xe9\xb5\xe8\xb5\xa6\xd1\x81\x16\xed"), // hash of "/some/path"
                 None,
             ),
             PathHashSpy::new(
-                Path::new("/other/path").to_owned(),
+                "/other/path",
                 Some(*b"\x59\xea\xd6\x2a\x5f\x16\xe4\xee\x2f\x7d\xe8\x9e\x52\xf9\x78\xd6\xf1\x5e\x97\xf3\x87\x25\x5d\xd7\x7e\xd3\xc7\x2f\x88\x88\x28\x55"), // hash of "/other/path"
                 None,
             ),
@@ -289,12 +289,12 @@ mod tests {
     fn compute_hash_with_root() {
         let spies = vec![
             PathHashSpy::new(
-                Path::new("/pre/fix/some/path").to_owned(),
+                "/pre/fix/some/path",
                 Some(*b"\xba\xcb\xe3\xc3\x46\xcb\x5c\xb0\xcf\x30\xdb\x33\xad\xc7\xd4\x10\x49\x36\x44\xaa\xfe\x98\xe0\x8e\x0e\x27\x9b\xb3\x5b\x57\x92\x8a"), // hash of "./some/path"
                 None,
             ),
             PathHashSpy::new(
-                Path::new("/pre/fix/other/path").to_owned(),
+                "/pre/fix/other/path",
                 Some(*b"\x62\x09\xe5\xaa\x71\x50\xa1\xc6\xee\x59\x2f\x0a\x7f\x6a\x32\xe1\xcb\x74\x93\x33\xcb\x90\x6a\xbf\xfb\x5e\x65\x5e\x04\x91\xc6\x88"), // hash of "./other/path"
                 None,
             ),
@@ -323,12 +323,12 @@ mod tests {
     fn compute_hash_with_mismatched_root() {
         let spies = vec![
             PathHashSpy::new(
-                Path::new("/pre/fix/some/path").to_owned(),
+                "/pre/fix/some/path",
                 Some(*b"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"),
                 None,
             ),
             PathHashSpy::new(
-                Path::new("/pre/fix/other/path").to_owned(),
+                "/pre/fix/other/path",
                 Some(*b"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb"),
                 None,
             ),
@@ -344,12 +344,12 @@ mod tests {
     fn compute_hash_computes_underlying_hash_only_when_necessary() {
         let spies = vec![
             PathHashSpy::new(
-                Path::new("/some/path").to_owned(),
+                "/some/path",
                 None,
                 Some(*b"\xd8\x3b\xa8\x04\x20\xec\x99\xbc\xb1\x43\xdf\x16\xa0\x0c\x39\xa5\x6c\x14\x03\x41\xe4\x44\x6a\xe9\xb5\xe8\xb5\xa6\xd1\x81\x16\xed"), // hash of "/some/path"
             ),
             PathHashSpy::new(
-                Path::new("/other/path").to_owned(),
+                "/other/path",
                 Some(*b"\x59\xea\xd6\x2a\x5f\x16\xe4\xee\x2f\x7d\xe8\x9e\x52\xf9\x78\xd6\xf1\x5e\x97\xf3\x87\x25\x5d\xd7\x7e\xd3\xc7\x2f\x88\x88\x28\x55"), // hash of "/other/path"
                 None,
             ),

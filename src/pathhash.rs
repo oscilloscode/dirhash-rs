@@ -181,8 +181,18 @@ mod tests {
     }
 
     #[test]
+    fn create_pathhash_from_different_path_types() {
+        let err = PathHash::new(Path::new("/oiweisliejfliajseflij")).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        let err = PathHash::new("/oiweisliejfliajseflij").unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+        let err = PathHash::new(String::from("/oiweisliejfliajseflij")).unwrap_err();
+        assert_eq!(err.kind(), ErrorKind::NotFound);
+    }
+
+    #[test]
     fn create_pathhash_not_absolute() {
-        let err = PathHash::new(Path::new(".")).unwrap_err();
+        let err = PathHash::new(".").unwrap_err();
         assert_eq!(err.kind(), ErrorKind::InvalidInput);
     }
 
@@ -253,9 +263,13 @@ pub mod pathhashspy {
     }
 
     impl PathHashSpy {
-        pub fn new(path: PathBuf, hash: Option<[u8; 32]>, next_hash: Option<[u8; 32]>) -> Self {
+        pub fn new(
+            path: impl AsRef<Path>,
+            hash: Option<[u8; 32]>,
+            next_hash: Option<[u8; 32]>,
+        ) -> Self {
             Self {
-                path,
+                path: path.as_ref().to_owned(),
                 hash,
                 next_hash,
                 call_count_compute_hash: 0,
@@ -292,18 +306,12 @@ pub mod pathhashspy {
     #[test]
     fn create_pathhashprovider_spies() {
         let spies = vec![
-            PathHashSpy {
-                path: Path::new("/some/path").to_owned(),
-                hash: None,
-                next_hash: None,
-                call_count_compute_hash: 0,
-            },
-            PathHashSpy {
-                path: Path::new("/other/path").to_owned(),
-                hash: Some(*b"01234567890123456789012345678901"),
-                next_hash: None,
-                call_count_compute_hash: 0,
-            },
+            PathHashSpy::new("/some/path", None, None),
+            PathHashSpy::new(
+                "/other/path",
+                Some(*b"01234567890123456789012345678901"),
+                None,
+            ),
         ];
 
         assert_eq!(spies[0].path().to_str().unwrap(), "/some/path");
@@ -316,12 +324,11 @@ pub mod pathhashspy {
 
     #[test]
     fn compute_hash() {
-        let mut spy = PathHashSpy {
-            path: Path::new("/some/path").to_owned(),
-            hash: None,
-            next_hash: Some(*b"01234567890123456789012345678901"),
-            call_count_compute_hash: 0,
-        };
+        let mut spy = PathHashSpy::new(
+            "/some/path",
+            None,
+            Some(*b"01234567890123456789012345678901"),
+        );
 
         assert!(spy.compute_hash().is_ok());
 
@@ -337,12 +344,7 @@ pub mod pathhashspy {
     #[test]
     #[should_panic]
     fn compute_hash_no_nexthash() {
-        let mut spy = PathHashSpy {
-            path: Path::new("/some/path").to_owned(),
-            hash: None,
-            next_hash: None,
-            call_count_compute_hash: 0,
-        };
+        let mut spy = PathHashSpy::new("/some/path", None, None);
 
         let _ = spy.compute_hash();
     }
@@ -350,12 +352,11 @@ pub mod pathhashspy {
     #[test]
     #[should_panic]
     fn compute_hash_later_no_nexthash() {
-        let mut spy = PathHashSpy {
-            path: Path::new("/some/path").to_owned(),
-            hash: None,
-            next_hash: Some(*b"01234567890123456789012345678901"),
-            call_count_compute_hash: 0,
-        };
+        let mut spy = PathHashSpy::new(
+            "/some/path",
+            None,
+            Some(*b"01234567890123456789012345678901"),
+        );
 
         // Can't use asserts to check correct functionality as this would count as a panic,
         // fulfilling the `#[should_panic]` expectation of the test. Returning from the test
