@@ -48,7 +48,7 @@ pub fn compute_hash_benchmark(c: &mut Criterion) {
     // in the `assert_eq!()` down below.
     // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
 
-    let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+    let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
     // assert!(pathhashlist.compute_hash().is_ok());
     group.bench_function("with_update", |b| {
