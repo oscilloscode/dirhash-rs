@@ -54,7 +54,7 @@ mod compute_hash {
         // in the `assert_eq!()` down below.
         // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
 
-        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
         bencher.bench_local(|| pathhashlist.compute_hash_with_update());
 
@@ -70,7 +70,7 @@ mod compute_hash {
         // in the `assert_eq!()` down below.
         // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
 
-        let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
         bencher.bench_local(|| pathhashlist.compute_hash_with_string());
 
