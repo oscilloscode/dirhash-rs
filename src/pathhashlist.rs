@@ -12,16 +12,21 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
+use crate::hashtable::HashTable;
 use crate::pathhash::{PathHash, PathHashProvider};
 
+// TODO:
 // Maybe it's better to get rid of getters and just make root and hash public... If root is public,
 // could a user of the struct then just reassign the member? Or can I somehow make it public but
-// immutable/irreplaceable?
+// immutable/irreplaceable? Apparently, the borrow checker "prefers" direct access than getters and
+// setters.
+// https://users.rust-lang.org/t/best-practices-on-setters-and-accessor-methods-in-general/66530
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PathHashList<T> {
     root: Option<PathBuf>,
     pathhashvec: Vec<T>,
     hash: Option<[u8; 32]>,
+    hashtable: Option<HashTable>,
 }
 
 impl<T> PathHashList<T>
@@ -34,6 +39,7 @@ where
             root: root.map(|p| p.to_owned()),
             pathhashvec: files,
             hash: None,
+            hashtable: None,
         })
     }
 
@@ -199,6 +205,7 @@ impl PathHashList<PathHash> {
             root,
             pathhashvec: files,
             hash: None,
+            hashtable: None,
         })
     }
 }
@@ -254,6 +261,13 @@ mod tests {
         pathhashlist.hash = Some(*b"01234567890123456789012345678901");
         assert!(pathhashlist.hash().is_some());
         assert_eq!(pathhashlist.hash().unwrap()[7], 0x37);
+    }
+
+    #[test]
+    fn hashtable_is_none_after_init() {
+        let spies: Vec<PathHashSpy> = vec![];
+        let pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
+        assert!(pathhashlist.hashtable.is_none());
     }
 
     #[test]
