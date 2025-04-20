@@ -14,6 +14,7 @@
 ///
 use std::path::{Path, PathBuf};
 
+pub mod hashtable;
 pub mod pathhash;
 pub mod pathhashlist;
 
