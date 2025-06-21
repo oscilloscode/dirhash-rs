@@ -1,4 +1,4 @@
-use std::array::TryFromSliceError;
+use std::{array::TryFromSliceError, fmt::Display};
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct HashTableEntry {
@@ -16,6 +16,12 @@ impl HashTableEntry {
             hash: hash.as_ref().try_into()?,
             path: path.into(),
         })
+    }
+}
+
+impl Display for HashTableEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}  {}", hex::encode(self.hash), self.path)
     }
 }
 
@@ -42,6 +48,27 @@ impl HashTable {
     pub fn sort(&mut self) {
         self.entries.sort();
     }
+}
+
+// TODO: Check which implementation is more performant
+impl Display for HashTable {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{}",
+            self.entries
+                .iter()
+                .map(|e| e.to_string() + "\n")
+                .collect::<String>()
+        )
+    }
+
+    // fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+    //     for entry in &self.entries {
+    //         writeln!(f, "{}", entry)?
+    //     }
+    //     Ok(())
+    // }
 }
 
 #[cfg(test)]
@@ -249,5 +276,45 @@ mod tests {
         assert_eq!(ht.entries[16].path, "|pipe");
         assert_eq!(ht.entries[17].path, "~tilde");
         assert_eq!(ht.entries[18].path, "ä_umlaut");
+    }
+
+    #[test]
+    fn display_hashtableentry() {
+        let entry = HashTableEntry::new([2; 32], String::from("/some/path"))
+            .expect("Can't create HashTableEntry");
+        assert_eq!(
+            entry.to_string(),
+            "0202020202020202020202020202020202020202020202020202020202020202  /some/path"
+        );
+
+        let entry = HashTableEntry::new([200; 32], String::from("/some/path"))
+            .expect("Can't create HashTableEntry");
+        assert_eq!(
+            entry.to_string(),
+            "c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8  /some/path"
+        );
+    }
+
+    #[test]
+    fn display_hashtable() {
+        let mut ht = HashTable::new();
+
+        let v = vec![
+            HashTableEntry::new([22; 32], String::from("/path0")).unwrap(),
+            HashTableEntry::new([255; 32], String::from("/path1")).unwrap(),
+            HashTableEntry::new([74; 32], String::from("/path2")).unwrap(),
+            HashTableEntry::new([88; 32], String::from("/path3")).unwrap(),
+        ];
+        ht.append(v);
+
+        print!("{}", ht.to_string());
+
+        assert_eq!(
+            ht.to_string(),
+            "1616161616161616161616161616161616161616161616161616161616161616  /path0\n\
+             ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff  /path1\n\
+             4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a4a  /path2\n\
+             5858585858585858585858585858585858585858585858585858585858585858  /path3\n"
+        );
     }
 }
