@@ -12,7 +12,7 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
-use crate::hashtable::HashTable;
+use crate::hashtable::{HashTable, HashTableEntry};
 use crate::pathhash::{PathHash, PathHashProvider};
 
 // TODO:
@@ -51,14 +51,49 @@ where
         self.hash.as_ref()
     }
 
+    pub fn compute_hash_hashtable(&mut self) -> Result<(), std::io::Error> {
+        let mut ht = HashTable::new();
+
+        for pb in &mut self.pathhashvec {
+            if pb.hash().is_none() {
+                pb.compute_hash()?;
+            }
+
+            let maybe_stripped_path = match &self.root {
+                Some(root) => {
+                    Cow::from("./")
+                        + pb.path()
+                            .strip_prefix(root)
+                            .map_err(|e| Error::other(e))? // TODO: fix with thiserror or anyhow
+                            .to_string_lossy()
+                }
+                None => pb.path().to_string_lossy(),
+            };
+
+            ht.add(
+                HashTableEntry::new(pb.hash().unwrap(), maybe_stripped_path)
+                    .expect("Can't create HashTableEntry"),
+            );
+        }
+
+        ht.sort();
+
+        let hash = Sha256::digest(ht.to_string());
+        self.hashtable = Some(ht);
+        self.hash = Some(hash.into());
+
+        Ok(())
+    }
+
     /// Computes hash of all PathHashs.
     ///
     /// TODO:
     /// Either test both implementations and keep them both, or benchmark them, select one, and only
     /// use that one!
     pub fn compute_hash(&mut self) -> Result<(), std::io::Error> {
-        self.compute_hash_with_update()
+        // self.compute_hash_with_update()
         // self.compute_hash_with_string()
+        self.compute_hash_hashtable()
     }
 
     /// Computes hash of all PathHashs.
@@ -296,6 +331,11 @@ mod tests {
         // d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
+        assert_eq!(
+            pathhashlist.hashtable.as_ref().unwrap().to_string(),
+            "59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path\n\
+             d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path\n"
+        );
         assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
     }
 
@@ -328,6 +368,11 @@ mod tests {
         //
         // -> 13f9a9ba4a18685d46498d4ac27f02ac0c70c8afe14220266032765633c39933
         assert_eq!(
+            pathhashlist.hashtable.as_ref().unwrap().to_string(),
+            "6209e5aa7150a1c6ee592f0a7f6a32e1cb749333cb906abffb5e655e0491c688  ./other/path\n\
+             bacbe3c346cb5cb0cf30db33adc7d410493644aafe98e08e0e279bb35b57928a  ./some/path\n"
+        );
+        assert_eq!(
             pathhashlist.hash().unwrap(),
             b"\x13\xf9\xa9\xba\x4a\x18\x68\x5d\x46\x49\x8d\x4a\xc2\x7f\x02\xac\x0c\x70\xc8\xaf\xe1\x42\x20\x26\x60\x32\x76\x56\x33\xc3\x99\x33"
         );
@@ -352,6 +397,8 @@ mod tests {
 
         let err = pathhashlist.compute_hash().unwrap_err();
         assert_eq!(err.kind(), ErrorKind::Other); // TODO: Specifically check for StripPrefixError
+        assert!(pathhashlist.hashtable.is_none());
+        assert!(pathhashlist.hash.is_none());
     }
 
     #[test]
@@ -380,6 +427,11 @@ mod tests {
         // d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
+        assert_eq!(
+            pathhashlist.hashtable.as_ref().unwrap().to_string(),
+            "59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path\n\
+             d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path\n"
+        );
         assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
     }
 
@@ -393,6 +445,7 @@ mod tests {
         // Hash of nothing at all (not even a newline):
         //
         // -> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
+        assert_eq!(pathhashlist.hashtable.as_ref().unwrap().to_string(), "");
         assert_eq!(pathhashlist.hash().unwrap(), b"\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55");
     }
 
