@@ -41,8 +41,8 @@ impl HashTable {
         self.entries.push(entry);
     }
 
-    pub fn append(&mut self, mut entries: Vec<HashTableEntry>) {
-        self.entries.append(&mut entries);
+    pub fn append(&mut self, entries: &mut Vec<HashTableEntry>) {
+        self.entries.append(entries);
     }
 
     pub fn sort(&mut self) {
@@ -106,11 +106,11 @@ mod tests {
         let mut ht = HashTable::new();
         assert!(ht.entries.is_empty());
 
-        let v = vec![
+        let mut v = vec![
             HashTableEntry::new([0; 32], String::from("/path0")).unwrap(),
             HashTableEntry::new([1; 32], String::from("/path1")).unwrap(),
         ];
-        ht.append(v);
+        ht.append(&mut v);
 
         assert_eq!(ht.entries.len(), 2);
         assert_eq!(ht.entries[0].path, "/path0");
@@ -118,11 +118,11 @@ mod tests {
         assert_eq!(ht.entries[1].path, "/path1");
         assert_eq!(ht.entries[1].hash, [1; 32]);
 
-        let v = vec![
+        let mut v = vec![
             HashTableEntry::new([2; 32], String::from("/path2")).unwrap(),
             HashTableEntry::new([3; 32], String::from("/path3")).unwrap(),
         ];
-        ht.append(v);
+        ht.append(&mut v);
 
         assert_eq!(ht.entries.len(), 4);
         assert_eq!(ht.entries[0].path, "/path0");
@@ -137,7 +137,7 @@ mod tests {
 
     #[test]
     fn sort_hash_first_byte() {
-        let v = vec![
+        let mut v = vec![
             HashTableEntry::new(
                 [
                     1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -181,7 +181,7 @@ mod tests {
         ];
 
         let mut ht = HashTable::new();
-        ht.append(v);
+        ht.append(&mut v);
         ht.sort();
 
         assert_eq!(ht.entries[0].path, "/zero");
@@ -193,7 +193,7 @@ mod tests {
 
     #[test]
     fn sort_hash_last_byte() {
-        let v = vec![
+        let mut v = vec![
             HashTableEntry::new(
                 [
                     0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
@@ -221,7 +221,7 @@ mod tests {
         ];
 
         let mut ht = HashTable::new();
-        ht.append(v);
+        ht.append(&mut v);
         ht.sort();
 
         assert_eq!(ht.entries[0].path, "/two");
@@ -231,7 +231,7 @@ mod tests {
 
     #[test]
     fn sort_hash_path() {
-        let v: Vec<HashTableEntry> = vec![
+        let mut v: Vec<HashTableEntry> = vec![
             HashTableEntry::new([0; 32], String::from("ä_umlaut")).unwrap(),
             HashTableEntry::new([0; 32], String::from("8")).unwrap(),
             HashTableEntry::new([0; 32], String::from("\\backslash")).unwrap(),
@@ -254,7 +254,7 @@ mod tests {
         ];
 
         let mut ht = HashTable::new();
-        ht.append(v);
+        ht.append(&mut v);
         ht.sort();
 
         assert_eq!(ht.entries[0].path, "\"quote");
@@ -299,13 +299,13 @@ mod tests {
     fn display_hashtable() {
         let mut ht = HashTable::new();
 
-        let v = vec![
+        let mut v = vec![
             HashTableEntry::new([22; 32], String::from("/path0")).unwrap(),
             HashTableEntry::new([255; 32], String::from("/path1")).unwrap(),
             HashTableEntry::new([74; 32], String::from("/path2")).unwrap(),
             HashTableEntry::new([88; 32], String::from("/path3")).unwrap(),
         ];
-        ht.append(v);
+        ht.append(&mut v);
 
         print!("{}", ht.to_string());
 
