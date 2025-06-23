@@ -51,15 +51,7 @@ pub fn compute_hash_benchmark(c: &mut Criterion) {
     let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
     // assert!(pathhashlist.compute_hash().is_ok());
-    group.bench_function("with_update", |b| {
-        b.iter(|| pathhashlist.compute_hash_with_update())
-    });
-
-    assert_eq!(pathhashlist.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
-
-    group.bench_function("with_string", |b| {
-        b.iter(|| pathhashlist.compute_hash_with_string())
-    });
+    group.bench_function("compute_hash", |b| b.iter(|| pathhashlist.compute_hash()));
 
     assert_eq!(pathhashlist.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
 }

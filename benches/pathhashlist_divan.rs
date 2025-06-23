@@ -46,7 +46,7 @@ mod compute_hash {
     use super::*;
 
     #[divan::bench]
-    pub fn with_update(bencher: divan::Bencher) {
+    pub fn compute_hash(bencher: divan::Bencher) {
         let spies = create_large_spy_vec(1000);
 
         // Use this function to create a file containing all the hashes and paths of the spies. You can
@@ -56,23 +56,7 @@ mod compute_hash {
 
         let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
 
-        bencher.bench_local(|| pathhashlist.compute_hash_with_update());
-
-        assert_eq!(pathhashlist.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
-    }
-
-    #[divan::bench]
-    pub fn with_string(bencher: divan::Bencher) {
-        let spies = create_large_spy_vec(1000);
-
-        // Use this function to create a file containing all the hashes and paths of the spies. You can
-        // then compute the overall hash with "sha256sum spies.txt" and place the expected overall hash
-        // in the `assert_eq!()` down below.
-        // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
-
-        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
-
-        bencher.bench_local(|| pathhashlist.compute_hash_with_string());
+        bencher.bench_local(|| pathhashlist.compute_hash());
 
         assert_eq!(pathhashlist.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
     }
