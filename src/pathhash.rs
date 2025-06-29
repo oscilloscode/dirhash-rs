@@ -3,18 +3,19 @@
 //!
 
 use std::{
-    fs,
-    io::{Error, ErrorKind},
+    fs, io,
     path::{Path, PathBuf},
 };
 
 use sha2::{Digest, Sha256};
 
+use crate::error::Result;
+
 // TODO: Rename this!!
 pub trait PathHashProvider {
     fn path(&self) -> &Path;
     fn hash(&self) -> Option<&[u8; 32]>;
-    fn compute_hash(&mut self) -> Result<(), Error>;
+    fn compute_hash(&mut self) -> Result<()>;
 }
 
 /// Struct containing a path and hash from a file on the filesystem.
@@ -27,17 +28,17 @@ pub struct PathHash {
 impl PathHash {
     /// Creates a [`PathHash`] from a path to a file on the system.
     ///
-    /// Returns an [`std::io::Error`] if the file doesn't exist or if it isn't absolute. Symlinks
+    /// Returns an [`DirHashError::Io`] if the file doesn't exist or if it isn't absolute. Symlinks
     /// are not resolved ant thus the `canonicalize` method of [`std::path::Path`] can't be used.
     ///
     /// Currently, `..` and `.` are not resolved.
-    pub fn new(path: impl AsRef<Path>) -> Result<Self, Error> {
+    pub fn new(path: impl AsRef<Path>) -> Result<Self> {
         if !path.as_ref().exists() {
-            return Err(Error::new(ErrorKind::NotFound, "file not found"));
+            return Err(io::Error::new(io::ErrorKind::NotFound, "file not found").into());
         }
 
         if !path.as_ref().is_absolute() {
-            return Err(Error::new(ErrorKind::InvalidInput, "path not absolute"));
+            return Err(io::Error::new(io::ErrorKind::InvalidInput, "path not absolute").into());
         }
 
         Ok(PathHash {
@@ -50,7 +51,7 @@ impl PathHash {
 impl PathHashProvider for PathHash {
     /// Computes the SHA256 hash of the contents of the corresponding file and stores it. Calling
     /// this method again will reread the file and recompute the hash value.
-    fn compute_hash(&mut self) -> Result<(), Error> {
+    fn compute_hash(&mut self) -> Result<()> {
         let data = fs::read(&self.path)?;
         let hash = Sha256::digest(data);
         self.hash = Some(hash.into());
@@ -75,6 +76,8 @@ mod tests {
     use std::io::{Read, Seek, Write};
     use std::os::unix;
     use std::sync::OnceLock;
+
+    use crate::error::DirHashError;
 
     use super::*;
     use fs::File;
@@ -177,23 +180,51 @@ mod tests {
     #[test]
     fn create_pathhash_not_found() {
         let err = PathHash::new(Path::new("/oiweisliejfliajseflij")).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
+
+        match err {
+            DirHashError::Io(io_err) => {
+                assert_eq!(io_err.kind(), io::ErrorKind::NotFound);
+            }
+            _ => panic!("Wrong enum variant"),
+        }
     }
 
     #[test]
     fn create_pathhash_from_different_path_types() {
         let err = PathHash::new(Path::new("/oiweisliejfliajseflij")).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
+        match err {
+            DirHashError::Io(io_err) => {
+                assert_eq!(io_err.kind(), io::ErrorKind::NotFound);
+            }
+            _ => panic!("Wrong enum variant"),
+        }
+
         let err = PathHash::new("/oiweisliejfliajseflij").unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
+        match err {
+            DirHashError::Io(io_err) => {
+                assert_eq!(io_err.kind(), io::ErrorKind::NotFound);
+            }
+            _ => panic!("Wrong enum variant"),
+        }
+
         let err = PathHash::new(String::from("/oiweisliejfliajseflij")).unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::NotFound);
+        match err {
+            DirHashError::Io(io_err) => {
+                assert_eq!(io_err.kind(), io::ErrorKind::NotFound);
+            }
+            _ => panic!("Wrong enum variant"),
+        }
     }
 
     #[test]
     fn create_pathhash_not_absolute() {
         let err = PathHash::new(".").unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::InvalidInput);
+        match err {
+            DirHashError::Io(io_err) => {
+                assert_eq!(io_err.kind(), io::ErrorKind::InvalidInput);
+            }
+            _ => panic!("Wrong enum variant"),
+        }
     }
 
     #[test]
@@ -282,7 +313,7 @@ pub mod pathhashspy {
     }
 
     impl PathHashProvider for PathHashSpy {
-        fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+        fn compute_hash(&mut self) -> Result<()> {
             self.call_count_compute_hash += 1;
 
             match self.next_hash {
@@ -337,10 +368,6 @@ pub mod pathhashspy {
         assert_eq!(&spy.next_hash.unwrap(), b"01234567890123456789012345678901");
     }
 
-    // TODO:
-    // - Use something different than std::io::Error to accomodate the error thrown here? But,
-    // changing the error type just for the test is probably bad. Check if the type also profits
-    // from changing the error type.
     #[test]
     #[should_panic]
     fn compute_hash_no_nexthash() {
