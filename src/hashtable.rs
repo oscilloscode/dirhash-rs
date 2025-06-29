@@ -1,4 +1,6 @@
-use std::{array::TryFromSliceError, fmt::Display};
+use std::fmt::Display;
+
+use crate::error::Result;
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct HashTableEntry {
@@ -7,7 +9,7 @@ pub struct HashTableEntry {
 }
 
 impl HashTableEntry {
-    pub fn new<P, H>(hash: H, path: P) -> Result<Self, TryFromSliceError>
+    pub fn new<P, H>(hash: H, path: P) -> Result<Self>
     where
         P: Into<String>,
         H: AsRef<[u8]>,
@@ -76,7 +78,27 @@ mod tests {
     use super::*;
 
     #[test]
-    fn new() {
+    fn new_hashtableentry() {
+        let hte = HashTableEntry::new([0; 32], String::from("/some/path"))
+            .expect("Can't create HashTableEntry");
+        assert_eq!(hte.hash, [0; 32]);
+        assert_eq!(hte.path, "/some/path");
+    }
+
+    #[test]
+    fn new_hashtableentry_wrong_hash_too_short() {
+        let err = HashTableEntry::new([0; 31], String::from("/some/path")).unwrap_err();
+        assert!(matches!(err, crate::error::DirHashError::HashTableEntry(_)));
+    }
+
+    #[test]
+    fn new_hashtableentry_wrong_hash_too_long() {
+        let err = HashTableEntry::new([0; 33], String::from("/some/path")).unwrap_err();
+        assert!(matches!(err, crate::error::DirHashError::HashTableEntry(_)));
+    }
+
+    #[test]
+    fn new_hashtable() {
         let ht = HashTable::new();
         assert!(ht.entries.is_empty());
     }

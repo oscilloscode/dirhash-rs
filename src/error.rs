@@ -4,6 +4,8 @@ use thiserror::Error;
 pub enum DirHashError {
     #[error("IO error: {0}")]
     Io(#[from] std::io::Error),
+    #[error("HashTableEntry: conversion from a slice to an array failed")]
+    HashTableEntry(#[from] std::array::TryFromSliceError),
     #[error("Unknown error")]
     Unknown,
 }
