@@ -5,12 +5,12 @@
 //!
 
 use std::borrow::Cow;
-use std::io::Error;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
+use crate::error::Result;
 use crate::hashtable::{HashTable, HashTableEntry};
 use crate::pathhash::{PathHash, PathHashProvider};
 
@@ -32,8 +32,7 @@ impl<T> PathHashList<T>
 where
     T: PathHashProvider,
 {
-    pub fn new(files: Vec<T>, root: Option<&Path>) -> Result<Self, std::io::Error> {
-        // Err(std::io::Error::new(std::io::ErrorKind::Other, "oh no!"))
+    pub fn new(files: Vec<T>, root: Option<&Path>) -> Result<Self> {
         Ok(PathHashList {
             root: root.map(|p| p.to_owned()),
             pathhashvec: files,
@@ -52,7 +51,7 @@ where
 
     /// Computes hash of all PathHashs.
     ///
-    pub fn compute_hash(&mut self) -> Result<(), std::io::Error> {
+    pub fn compute_hash(&mut self) -> Result<()> {
         let mut ht = HashTable::new();
 
         for pb in &mut self.pathhashvec {
@@ -61,13 +60,7 @@ where
             }
 
             let maybe_stripped_path = match &self.root {
-                Some(root) => {
-                    Cow::from("./")
-                        + pb.path()
-                            .strip_prefix(root)
-                            .map_err(|e| Error::other(e))? // TODO: fix with thiserror or anyhow
-                            .to_string_lossy()
-                }
+                Some(root) => Cow::from("./") + pb.path().strip_prefix(root)?.to_string_lossy(),
                 None => pb.path().to_string_lossy(),
             };
 
@@ -92,11 +85,7 @@ impl PathHashList<PathHash> {
     // - A builder pattern is probably more suitable. This would also allow options like following
     //   symlinks etc. to be more descriptive and idiomatic.
     // - Add bool parameter for absolute paths?
-    pub fn from_path_recursive(
-        path: &Path,
-        set_root: bool,
-        follow_symlinks: bool,
-    ) -> Result<Self, std::io::Error> {
+    pub fn from_path_recursive(path: &Path, set_root: bool, follow_symlinks: bool) -> Result<Self> {
         let mut files: Vec<PathHash> = vec![];
 
         // WalkDir::new(path)
@@ -136,10 +125,8 @@ impl PathHashList<PathHash> {
 
 #[cfg(test)]
 mod tests {
-    use std::io::ErrorKind;
-
     use super::*;
-    use crate::pathhash::pathhashspy::PathHashSpy;
+    use crate::{error::DirHashError, pathhash::pathhashspy::PathHashSpy};
 
     #[test]
     fn new() {
@@ -285,7 +272,8 @@ mod tests {
             .expect("Can't create PathHashList");
 
         let err = pathhashlist.compute_hash().unwrap_err();
-        assert_eq!(err.kind(), ErrorKind::Other); // TODO: Specifically check for StripPrefixError
+        assert!(matches!(err, DirHashError::RootMismatch(_)));
+
         assert!(pathhashlist.hashtable.is_none());
         assert!(pathhashlist.hash.is_none());
     }

@@ -6,6 +6,10 @@ pub enum DirHashError {
     Io(#[from] std::io::Error),
     #[error("HashTableEntry: conversion from a slice to an array failed")]
     HashTableEntry(#[from] std::array::TryFromSliceError),
+    #[error("Walkdir: Error while walking directory")]
+    WalkDir(#[from] walkdir::Error),
+    #[error("DirHash: Mismatched roots")]
+    RootMismatch(#[from] std::path::StripPrefixError),
     #[error("Unknown error")]
     Unknown,
 }
