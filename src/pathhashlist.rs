@@ -14,12 +14,6 @@ use crate::error::Result;
 use crate::hashtable::{HashTable, HashTableEntry};
 use crate::pathhash::{PathHash, PathHashProvider};
 
-// TODO:
-// Maybe it's better to get rid of getters and just make root and hash public... If root is public,
-// could a user of the struct then just reassign the member? Or can I somehow make it public but
-// immutable/irreplaceable? Apparently, the borrow checker "prefers" direct access than getters and
-// setters.
-// https://users.rust-lang.org/t/best-practices-on-setters-and-accessor-methods-in-general/66530
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct PathHashList<T> {
     root: Option<PathBuf>,
