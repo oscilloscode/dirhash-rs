@@ -43,6 +43,10 @@ where
         self.hash.as_ref()
     }
 
+    pub fn hashtable(&self) -> Option<&HashTable> {
+        self.hashtable.as_ref()
+    }
+
     /// Computes hash of all PathHashs.
     ///
     pub fn compute_hash(&mut self) -> Result<()> {
@@ -176,6 +180,27 @@ mod tests {
     }
 
     #[test]
+    fn hashtable_getter() {
+        let spies: Vec<PathHashSpy> = vec![];
+        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
+        assert!(pathhashlist.hashtable().is_none());
+        let mut ht = HashTable::new();
+        let mut hte = vec![
+            HashTableEntry::new([1; 32], String::from("/path0")).unwrap(),
+            HashTableEntry::new([255; 32], String::from("/path1")).unwrap(),
+        ];
+        ht.append(&mut hte);
+
+        pathhashlist.hashtable = Some(ht);
+        assert!(pathhashlist.hashtable().is_some());
+        assert_eq!(
+            pathhashlist.hashtable().unwrap().to_string(),
+            "0101010101010101010101010101010101010101010101010101010101010101  /path0\n\
+             ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff  /path1\n"
+        );
+    }
+
+    #[test]
     fn compute_hash_no_root() {
         let spies = vec![
             PathHashSpy::new(
@@ -202,7 +227,7 @@ mod tests {
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
         assert_eq!(
-            pathhashlist.hashtable.as_ref().unwrap().to_string(),
+            pathhashlist.hashtable().unwrap().to_string(),
             "59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path\n\
              d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path\n"
         );
@@ -238,7 +263,7 @@ mod tests {
         //
         // -> 13f9a9ba4a18685d46498d4ac27f02ac0c70c8afe14220266032765633c39933
         assert_eq!(
-            pathhashlist.hashtable.as_ref().unwrap().to_string(),
+            pathhashlist.hashtable().unwrap().to_string(),
             "6209e5aa7150a1c6ee592f0a7f6a32e1cb749333cb906abffb5e655e0491c688  ./other/path\n\
              bacbe3c346cb5cb0cf30db33adc7d410493644aafe98e08e0e279bb35b57928a  ./some/path\n"
         );
@@ -299,7 +324,7 @@ mod tests {
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
         assert_eq!(
-            pathhashlist.hashtable.as_ref().unwrap().to_string(),
+            pathhashlist.hashtable().unwrap().to_string(),
             "59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path\n\
              d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path\n"
         );
@@ -316,7 +341,7 @@ mod tests {
         // Hash of nothing at all (not even a newline):
         //
         // -> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-        assert_eq!(pathhashlist.hashtable.as_ref().unwrap().to_string(), "");
+        assert_eq!(pathhashlist.hashtable().unwrap().to_string(), "");
         assert_eq!(pathhashlist.hash().unwrap(), b"\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55");
     }
 }
