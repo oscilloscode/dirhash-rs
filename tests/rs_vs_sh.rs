@@ -1,5 +1,5 @@
 //! Things to check:
-//! - ...
+//! - Compare outputs from rs/sh with random data
 
 use std::process::Command;
 
@@ -20,6 +20,7 @@ fn sh_with_command() {
         1,
         &["x", "y"][..],
         2,
+        false,
     );
 
     // rs implementation

@@ -18,6 +18,7 @@ fn create_from_path_recursively_no_root() {
         1,
         &["x", "y"][..],
         2,
+        false,
     );
 
     let mut pathhashlist = PathHashList::from_path_recursive(dir.path(), false, false)
@@ -47,7 +48,7 @@ fn create_from_path_recursively_no_root() {
 
 #[test]
 fn create_from_path_recursively_with_root() {
-    let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 1, &["x", "y"][..], 2);
+    let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 1, &["x", "y"][..], 2, false);
 
     let mut pathhashlist = PathHashList::from_path_recursive(dir.path(), true, false)
         .expect("Can't create PathHashList");

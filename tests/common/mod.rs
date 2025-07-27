@@ -1,10 +1,16 @@
-use std::{fs::File, path::Path};
+use std::{fs::File, io::Write, path::Path};
 use tempfile::TempDir;
 
-fn create_numbered_files(dir: impl AsRef<Path>, n: usize) {
+fn create_numbered_files(dir: impl AsRef<Path>, n: usize, add_random_data: bool) {
     for i in 0..n {
-        let _ =
+        let mut f =
             File::create(dir.as_ref().join(format!("{}", i))).expect("Error while creating file");
+
+        if add_random_data == true {
+            let mut data = [0u8; 32];
+            rand::fill(&mut data);
+            f.write_all(&data).expect("Can't write random data to file");
+        }
     }
 }
 
@@ -83,6 +89,7 @@ pub fn creating_tempdir(
     l2_files: usize,
     l2_dirs: &[&str],
     l3_files: usize,
+    add_random_data: bool,
 ) -> TempDir {
     let dir = match dir_name {
         Some(dir_name) => tempfile::Builder::new()
@@ -97,21 +104,21 @@ pub fn creating_tempdir(
             .expect("Can't create tempdir"),
     };
 
-    create_numbered_files(&dir, l1_files);
+    create_numbered_files(&dir, l1_files, add_random_data);
 
     for d in l1_dirs.iter() {
         let dir_level_1 = dir.path().join(d.to_string());
         std::fs::create_dir(&dir_level_1)
             .expect(&format!("Error while creating directory {:?}", dir_level_1));
 
-        create_numbered_files(&dir_level_1, l2_files);
+        create_numbered_files(&dir_level_1, l2_files, add_random_data);
 
         for d in l2_dirs.iter() {
             let dir_level_2 = dir_level_1.join(d.to_string());
             std::fs::create_dir(&dir_level_2)
                 .expect(&format!("Error while creating directory {:?}", dir_level_2));
 
-            create_numbered_files(&dir_level_2, l3_files);
+            create_numbered_files(&dir_level_2, l3_files, add_random_data);
         }
     }
 
