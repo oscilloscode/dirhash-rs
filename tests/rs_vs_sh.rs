@@ -26,8 +26,9 @@ fn sh_with_command() {
     // rs implementation
     // ------------------
 
-    let mut dh =
-        DirHash::from_path_recursive(dir.path(), true, false).expect("Can't create DirHash");
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false)
+        .expect("Can't create DirHash");
 
     assert!(dh.compute_hash().is_ok());
 

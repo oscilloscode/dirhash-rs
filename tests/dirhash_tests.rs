@@ -10,9 +10,9 @@ use dirhash_rs::dirhash::DirHash;
 mod common;
 
 #[test]
-fn create_from_path_recursively_no_root() {
+fn with_file_from_dir_no_root_empty_files() {
     let dir = common::creating_tempdir(
-        Some(String::from(".tmp_create_from_path_recursively_no_root")),
+        Some(String::from(".tmp_with_file_from_dir_no_root_empty_files")),
         2,
         &["a", "b"][..],
         1,
@@ -21,52 +21,54 @@ fn create_from_path_recursively_no_root() {
         false,
     );
 
-    let mut dh =
-        DirHash::from_path_recursive(dir.path(), false, false).expect("Can't create DirHash");
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), false, false)
+        .expect("Can't create DirHash");
 
     assert!(dh.compute_hash().is_ok());
 
     // Hash of various empty files in tree structure:
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/0
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/1
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/0
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/x/0
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/x/1
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/y/0
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/y/1
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/0
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/x/0
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/x/1
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/y/0
-    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/y/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/x/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/x/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/y/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/y/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/x/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/x/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/y/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/y/1
     //
-    // -> a425a6aa4a9585eeee8cd7f2398c0cefd4f5e25228b71d3161872618993d19b8
+    // -> 98e8bcf358050f530beeb52aa963152f593007b01f87fe06bfdb15c01834accb
     assert_eq!(
         dh.hashtable().unwrap().to_string(),
-        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/1\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/x/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/x/1\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/y/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/a/y/1\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/x/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/x/1\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/y/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_create_from_path_recursively_no_root/b/y/1\n"
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/x/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/x/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/y/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/a/y/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/x/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/x/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/y/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_with_file_from_dir_no_root_empty_files/b/y/1\n"
     );
-    assert_eq!(dh.hash().unwrap(), b"\xa4\x25\xa6\xaa\x4a\x95\x85\xee\xee\x8c\xd7\xf2\x39\x8c\x0c\xef\xd4\xf5\xe2\x52\x28\xb7\x1d\x31\x61\x87\x26\x18\x99\x3d\x19\xb8");
+    assert_eq!(dh.hash().unwrap(), b"\x98\xe8\xbc\xf3\x58\x05\x0f\x53\x0b\xee\xb5\x2a\xa9\x63\x15\x2f\x59\x30\x07\xb0\x1f\x87\xfe\x06\xbf\xdb\x15\xc0\x18\x34\xac\xcb");
 
     dir.close().expect("Can't close tempdir");
 }
 
 #[test]
-fn create_from_path_recursively_with_root() {
+fn with_files_from_dir_with_root_empty_files() {
     let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 1, &["x", "y"][..], 2, false);
 
-    let mut dh =
-        DirHash::from_path_recursive(dir.path(), true, false).expect("Can't create DirHash");
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false)
+        .expect("Can't create DirHash");
 
     assert!(dh.compute_hash().is_ok());
 

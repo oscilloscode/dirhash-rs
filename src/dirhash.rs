@@ -26,13 +26,23 @@ impl<T> DirHash<T>
 where
     T: PathHashProvider,
 {
-    pub fn new(files: Vec<T>, root: Option<&Path>) -> Result<Self> {
-        Ok(DirHash {
-            root: root.map(|p| p.to_owned()),
-            pathhashvec: files,
+    pub fn new() -> Self {
+        DirHash {
+            root: None,
+            pathhashvec: Vec::new(),
             hash: None,
             hashtable: None,
-        })
+        }
+    }
+
+    pub fn with_root(mut self, root: impl AsRef<Path>) -> Self {
+        self.root = Some(root.as_ref().to_owned());
+        self
+    }
+
+    pub fn with_files(mut self, files: Vec<T>) -> Self {
+        self.pathhashvec = files;
+        self
     }
 
     pub fn root(&self) -> Option<&Path> {
@@ -79,19 +89,13 @@ where
 }
 
 impl DirHash<PathHash> {
-    // TODO:
-    // - A builder pattern is probably more suitable. This would also allow options like following
-    //   symlinks etc. to be more descriptive and idiomatic.
-    // - Add bool parameter for absolute paths?
-    pub fn from_path_recursive(path: &Path, set_root: bool, follow_symlinks: bool) -> Result<Self> {
+    pub fn with_files_from_dir(
+        mut self,
+        path: &Path,
+        set_root: bool,
+        follow_symlinks: bool,
+    ) -> Result<Self> {
         let mut files: Vec<PathHash> = vec![];
-
-        // WalkDir::new(path)
-        //     .follow_links(follow_symlinks)
-        //     .into_iter()
-        //     .filter_map(Result::ok)
-        //     .filter(|e| e.file_type().is_file())
-        //     .count();
 
         for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
             let entry = entry?;
@@ -106,18 +110,12 @@ impl DirHash<PathHash> {
             files.push(pathhash);
         }
 
-        let root = if set_root {
-            Some(path.to_owned())
-        } else {
-            None
-        };
+        if set_root {
+            self.root = Some(path.to_owned());
+        }
 
-        Ok(DirHash {
-            root,
-            pathhashvec: files,
-            hash: None,
-            hashtable: None,
-        })
+        self.pathhashvec = files;
+        Ok(self)
     }
 }
 
@@ -127,12 +125,14 @@ mod tests {
     use crate::{error::DirHashError, pathhash::pathhashspy::PathHashSpy};
 
     #[test]
-    fn new() {
+    fn builder_lite() {
         let spies = vec![
             PathHashSpy::new("/some/path", None, None),
             PathHashSpy::new("/other/path".to_owned(), None, None),
         ];
-        let dh = DirHash::new(spies, Some(Path::new("/some/path"))).expect("Can't create DirHash");
+        let dh = DirHash::new()
+            .with_files(spies)
+            .with_root(Path::new("/some/path"));
         assert_eq!(dh.root.unwrap().to_str().unwrap(), "/some/path");
         assert_eq!(dh.pathhashvec[0].path().to_str().unwrap(), "/some/path");
         assert_eq!(dh.pathhashvec[1].path().to_str().unwrap(), "/other/path");
@@ -141,8 +141,9 @@ mod tests {
     #[test]
     fn root_getter() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut dh =
-            DirHash::new(spies, Some(Path::new("/some/path"))).expect("Can't create DirHash");
+        let mut dh = DirHash::new()
+            .with_files(spies)
+            .with_root(Path::new("/some/path"));
         assert_eq!(dh.root().unwrap().to_str().unwrap(), "/some/path");
         dh.root = None;
         assert!(dh.root().is_none());
@@ -151,14 +152,14 @@ mod tests {
     #[test]
     fn hash_is_none_after_init() {
         let spies: Vec<PathHashSpy> = vec![];
-        let dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        let dh = DirHash::new().with_files(spies);
         assert!(dh.hash.is_none());
     }
 
     #[test]
     fn hash_getter() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        let mut dh = DirHash::new().with_files(spies);
         assert!(dh.hash().is_none());
         dh.hash = Some(*b"01234567890123456789012345678901");
         assert!(dh.hash().is_some());
@@ -168,14 +169,14 @@ mod tests {
     #[test]
     fn hashtable_is_none_after_init() {
         let spies: Vec<PathHashSpy> = vec![];
-        let dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        let dh = DirHash::new().with_files(spies);
         assert!(dh.hashtable.is_none());
     }
 
     #[test]
     fn hashtable_getter() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        let mut dh = DirHash::new().with_files(spies);
         assert!(dh.hashtable().is_none());
         let mut ht = HashTable::new();
         let mut hte = vec![
@@ -207,7 +208,7 @@ mod tests {
                 None,
             ),
         ];
-        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        let mut dh = DirHash::new().with_files(spies);
 
         assert!(dh.compute_hash().is_ok());
 
@@ -241,8 +242,9 @@ mod tests {
                 None,
             ),
         ];
-        let mut dh =
-            DirHash::new(spies, Some(Path::new("/pre/fix"))).expect("Can't create DirHash");
+        let mut dh = DirHash::new()
+            .with_files(spies)
+            .with_root(Path::new("/pre/fix"));
 
         assert!(dh.compute_hash().is_ok());
 
@@ -280,8 +282,9 @@ mod tests {
                 None,
             ),
         ];
-        let mut dh =
-            DirHash::new(spies, Some(Path::new("/not/prefix"))).expect("Can't create DirHash");
+        let mut dh = DirHash::new()
+            .with_files(spies)
+            .with_root(Path::new("/not/prefix"));
 
         let err = dh.compute_hash().unwrap_err();
         assert!(matches!(err, DirHashError::RootMismatch(_)));
@@ -304,7 +307,7 @@ mod tests {
                 None,
             ),
         ];
-        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        let mut dh = DirHash::new().with_files(spies);
 
         assert!(dh.compute_hash().is_ok());
 
@@ -327,7 +330,7 @@ mod tests {
     #[test]
     fn compute_hash_no_files() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        let mut dh = DirHash::new().with_files(spies);
 
         assert!(dh.compute_hash().is_ok());
 
