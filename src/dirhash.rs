@@ -15,19 +15,19 @@ use crate::hashtable::{HashTable, HashTableEntry};
 use crate::pathhash::{PathHash, PathHashProvider};
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
-pub struct PathHashList<T> {
+pub struct DirHash<T> {
     root: Option<PathBuf>,
     pathhashvec: Vec<T>,
     hash: Option<[u8; 32]>,
     hashtable: Option<HashTable>,
 }
 
-impl<T> PathHashList<T>
+impl<T> DirHash<T>
 where
     T: PathHashProvider,
 {
     pub fn new(files: Vec<T>, root: Option<&Path>) -> Result<Self> {
-        Ok(PathHashList {
+        Ok(DirHash {
             root: root.map(|p| p.to_owned()),
             pathhashvec: files,
             hash: None,
@@ -78,7 +78,7 @@ where
     }
 }
 
-impl PathHashList<PathHash> {
+impl DirHash<PathHash> {
     // TODO:
     // - A builder pattern is probably more suitable. This would also allow options like following
     //   symlinks etc. to be more descriptive and idiomatic.
@@ -112,7 +112,7 @@ impl PathHashList<PathHash> {
             None
         };
 
-        Ok(PathHashList {
+        Ok(DirHash {
             root,
             pathhashvec: files,
             hash: None,
@@ -132,58 +132,51 @@ mod tests {
             PathHashSpy::new("/some/path", None, None),
             PathHashSpy::new("/other/path".to_owned(), None, None),
         ];
-        let pathhashlist = PathHashList::new(spies, Some(Path::new("/some/path")))
-            .expect("Can't create PathHashList");
-        assert_eq!(pathhashlist.root.unwrap().to_str().unwrap(), "/some/path");
-        assert_eq!(
-            pathhashlist.pathhashvec[0].path().to_str().unwrap(),
-            "/some/path"
-        );
-        assert_eq!(
-            pathhashlist.pathhashvec[1].path().to_str().unwrap(),
-            "/other/path"
-        );
+        let dh = DirHash::new(spies, Some(Path::new("/some/path"))).expect("Can't create DirHash");
+        assert_eq!(dh.root.unwrap().to_str().unwrap(), "/some/path");
+        assert_eq!(dh.pathhashvec[0].path().to_str().unwrap(), "/some/path");
+        assert_eq!(dh.pathhashvec[1].path().to_str().unwrap(), "/other/path");
     }
 
     #[test]
     fn root_getter() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut pathhashlist = PathHashList::new(spies, Some(Path::new("/some/path")))
-            .expect("Can't create PathHashList");
-        assert_eq!(pathhashlist.root().unwrap().to_str().unwrap(), "/some/path");
-        pathhashlist.root = None;
-        assert!(pathhashlist.root().is_none());
+        let mut dh =
+            DirHash::new(spies, Some(Path::new("/some/path"))).expect("Can't create DirHash");
+        assert_eq!(dh.root().unwrap().to_str().unwrap(), "/some/path");
+        dh.root = None;
+        assert!(dh.root().is_none());
     }
 
     #[test]
     fn hash_is_none_after_init() {
         let spies: Vec<PathHashSpy> = vec![];
-        let pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
-        assert!(pathhashlist.hash.is_none());
+        let dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        assert!(dh.hash.is_none());
     }
 
     #[test]
     fn hash_getter() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
-        assert!(pathhashlist.hash().is_none());
-        pathhashlist.hash = Some(*b"01234567890123456789012345678901");
-        assert!(pathhashlist.hash().is_some());
-        assert_eq!(pathhashlist.hash().unwrap()[7], 0x37);
+        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        assert!(dh.hash().is_none());
+        dh.hash = Some(*b"01234567890123456789012345678901");
+        assert!(dh.hash().is_some());
+        assert_eq!(dh.hash().unwrap()[7], 0x37);
     }
 
     #[test]
     fn hashtable_is_none_after_init() {
         let spies: Vec<PathHashSpy> = vec![];
-        let pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
-        assert!(pathhashlist.hashtable.is_none());
+        let dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        assert!(dh.hashtable.is_none());
     }
 
     #[test]
     fn hashtable_getter() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
-        assert!(pathhashlist.hashtable().is_none());
+        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
+        assert!(dh.hashtable().is_none());
         let mut ht = HashTable::new();
         let mut hte = vec![
             HashTableEntry::new([1; 32], String::from("/path0")).unwrap(),
@@ -191,10 +184,10 @@ mod tests {
         ];
         ht.append(&mut hte);
 
-        pathhashlist.hashtable = Some(ht);
-        assert!(pathhashlist.hashtable().is_some());
+        dh.hashtable = Some(ht);
+        assert!(dh.hashtable().is_some());
         assert_eq!(
-            pathhashlist.hashtable().unwrap().to_string(),
+            dh.hashtable().unwrap().to_string(),
             "0101010101010101010101010101010101010101010101010101010101010101  /path0\n\
              ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff  /path1\n"
         );
@@ -214,12 +207,12 @@ mod tests {
                 None,
             ),
         ];
-        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
+        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
 
-        assert!(pathhashlist.compute_hash().is_ok());
+        assert!(dh.compute_hash().is_ok());
 
-        assert_eq!(pathhashlist.pathhashvec[0].call_count_compute_hash(), 0);
-        assert_eq!(pathhashlist.pathhashvec[1].call_count_compute_hash(), 0);
+        assert_eq!(dh.pathhashvec[0].call_count_compute_hash(), 0);
+        assert_eq!(dh.pathhashvec[1].call_count_compute_hash(), 0);
 
         // Hash of (the newline after the second line is also part of the digest):
         // 59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path
@@ -227,11 +220,11 @@ mod tests {
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
         assert_eq!(
-            pathhashlist.hashtable().unwrap().to_string(),
+            dh.hashtable().unwrap().to_string(),
             "59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path\n\
              d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path\n"
         );
-        assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
+        assert_eq!(dh.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
     }
 
     #[test]
@@ -248,13 +241,13 @@ mod tests {
                 None,
             ),
         ];
-        let mut pathhashlist = PathHashList::new(spies, Some(Path::new("/pre/fix")))
-            .expect("Can't create PathHashList");
+        let mut dh =
+            DirHash::new(spies, Some(Path::new("/pre/fix"))).expect("Can't create DirHash");
 
-        assert!(pathhashlist.compute_hash().is_ok());
+        assert!(dh.compute_hash().is_ok());
 
-        assert_eq!(pathhashlist.pathhashvec[0].call_count_compute_hash(), 0);
-        assert_eq!(pathhashlist.pathhashvec[1].call_count_compute_hash(), 0);
+        assert_eq!(dh.pathhashvec[0].call_count_compute_hash(), 0);
+        assert_eq!(dh.pathhashvec[1].call_count_compute_hash(), 0);
 
         // Hash of (the newline after the second line is also part of the digest):
         //
@@ -263,12 +256,12 @@ mod tests {
         //
         // -> 13f9a9ba4a18685d46498d4ac27f02ac0c70c8afe14220266032765633c39933
         assert_eq!(
-            pathhashlist.hashtable().unwrap().to_string(),
+            dh.hashtable().unwrap().to_string(),
             "6209e5aa7150a1c6ee592f0a7f6a32e1cb749333cb906abffb5e655e0491c688  ./other/path\n\
              bacbe3c346cb5cb0cf30db33adc7d410493644aafe98e08e0e279bb35b57928a  ./some/path\n"
         );
         assert_eq!(
-            pathhashlist.hash().unwrap(),
+            dh.hash().unwrap(),
             b"\x13\xf9\xa9\xba\x4a\x18\x68\x5d\x46\x49\x8d\x4a\xc2\x7f\x02\xac\x0c\x70\xc8\xaf\xe1\x42\x20\x26\x60\x32\x76\x56\x33\xc3\x99\x33"
         );
     }
@@ -287,14 +280,14 @@ mod tests {
                 None,
             ),
         ];
-        let mut pathhashlist = PathHashList::new(spies, Some(Path::new("/not/prefix")))
-            .expect("Can't create PathHashList");
+        let mut dh =
+            DirHash::new(spies, Some(Path::new("/not/prefix"))).expect("Can't create DirHash");
 
-        let err = pathhashlist.compute_hash().unwrap_err();
+        let err = dh.compute_hash().unwrap_err();
         assert!(matches!(err, DirHashError::RootMismatch(_)));
 
-        assert!(pathhashlist.hashtable.is_none());
-        assert!(pathhashlist.hash.is_none());
+        assert!(dh.hashtable.is_none());
+        assert!(dh.hash.is_none());
     }
 
     #[test]
@@ -311,12 +304,12 @@ mod tests {
                 None,
             ),
         ];
-        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
+        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
 
-        assert!(pathhashlist.compute_hash().is_ok());
+        assert!(dh.compute_hash().is_ok());
 
-        assert_eq!(pathhashlist.pathhashvec[0].call_count_compute_hash(), 1);
-        assert_eq!(pathhashlist.pathhashvec[1].call_count_compute_hash(), 0);
+        assert_eq!(dh.pathhashvec[0].call_count_compute_hash(), 1);
+        assert_eq!(dh.pathhashvec[1].call_count_compute_hash(), 0);
 
         // Hash of (the newline after the second line is also part of the digest):
         // 59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path
@@ -324,24 +317,24 @@ mod tests {
         //
         // -> 4dcf91beae7c9fcc68df4f57ab4344a744e7d0c326003a03e7996f87fe451390
         assert_eq!(
-            pathhashlist.hashtable().unwrap().to_string(),
+            dh.hashtable().unwrap().to_string(),
             "59ead62a5f16e4ee2f7de89e52f978d6f15e97f387255dd77ed3c72f88882855  /other/path\n\
              d83ba80420ec99bcb143df16a00c39a56c140341e4446ae9b5e8b5a6d18116ed  /some/path\n"
         );
-        assert_eq!(pathhashlist.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
+        assert_eq!(dh.hash().unwrap(), b"\x4d\xcf\x91\xbe\xae\x7c\x9f\xcc\x68\xdf\x4f\x57\xab\x43\x44\xa7\x44\xe7\xd0\xc3\x26\x00\x3a\x03\xe7\x99\x6f\x87\xfe\x45\x13\x90");
     }
 
     #[test]
     fn compute_hash_no_files() {
         let spies: Vec<PathHashSpy> = vec![];
-        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
+        let mut dh = DirHash::new(spies, None).expect("Can't create DirHash");
 
-        assert!(pathhashlist.compute_hash().is_ok());
+        assert!(dh.compute_hash().is_ok());
 
         // Hash of nothing at all (not even a newline):
         //
         // -> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
-        assert_eq!(pathhashlist.hashtable().unwrap().to_string(), "");
-        assert_eq!(pathhashlist.hash().unwrap(), b"\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55");
+        assert_eq!(dh.hashtable().unwrap().to_string(), "");
+        assert_eq!(dh.hash().unwrap(), b"\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55");
     }
 }

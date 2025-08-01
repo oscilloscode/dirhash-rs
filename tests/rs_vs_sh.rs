@@ -3,7 +3,7 @@
 
 use std::process::Command;
 
-use dirhash_rs::pathhashlist::PathHashList;
+use dirhash_rs::dirhash::DirHash;
 
 mod common;
 
@@ -26,10 +26,10 @@ fn sh_with_command() {
     // rs implementation
     // ------------------
 
-    let mut pathhashlist = PathHashList::from_path_recursive(dir.path(), true, false)
-        .expect("Can't create PathHashList");
+    let mut dh =
+        DirHash::from_path_recursive(dir.path(), true, false).expect("Can't create DirHash");
 
-    assert!(pathhashlist.compute_hash().is_ok());
+    assert!(dh.compute_hash().is_ok());
 
     // sh implementation
     // ------------------
@@ -64,8 +64,8 @@ fn sh_with_command() {
     // Verification
     // ------------
 
-    let rs_hash_str = hex::encode(pathhashlist.hash().unwrap());
-    let rs_hashtable_str = pathhashlist.hashtable().unwrap().to_string();
+    let rs_hash_str = hex::encode(dh.hash().unwrap());
+    let rs_hashtable_str = dh.hashtable().unwrap().to_string();
 
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
