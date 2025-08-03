@@ -1,40 +1,14 @@
 //! Things to check:
 //! - Compare outputs from rs/sh with random data
 
-use std::process::Command;
+use std::{path::Path, process::Command};
 
 use dirhash_rs::dirhash::DirHash;
 
 mod common;
 
-#[test]
-fn sh_with_command() {
-    // Setup
-    // ------
-
-    let dir = common::creating_tempdir(
-        None,
-        2,
-        // specifically crafted to check if sorting with LC_ALL=C is working
-        &["b,foo", "bc,pe", "bcd,ty"][..],
-        1,
-        &["x", "y"][..],
-        2,
-        false,
-    );
-
-    // rs implementation
-    // ------------------
-
-    let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false)
-        .expect("Can't create DirHash");
-
-    assert!(dh.compute_hash().is_ok());
-
-    // sh implementation
-    // ------------------
-
+// Convenience function for computing hashtable and hash with sh (fd & sha256sum)
+fn compute_hash_with_sh(dir: &Path) -> (String, String) {
     let hash_list_output = Command::new("bash")
         .current_dir(&dir)
         .env("LC_ALL", "C")
@@ -62,11 +36,43 @@ fn sh_with_command() {
 
     eprintln!("{}", &sh_hash_str);
 
-    // Verification
-    // ------------
+    (sh_hashtable_str.to_string(), sh_hash_str.to_string())
+}
+
+#[test]
+fn sh_with_command() {
+    // Setup
+    // ------
+
+    let dir = common::creating_tempdir(
+        None,
+        2,
+        // specifically crafted to check if sorting with LC_ALL=C is working
+        &["b,foo", "bc,pe", "bcd,ty"][..],
+        1,
+        &["x", "y"][..],
+        2,
+        false,
+    );
+
+    // rs implementation
+    // ------------------
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false)
+        .expect("Can't create DirHash");
+
+    assert!(dh.compute_hash().is_ok());
 
     let rs_hash_str = hex::encode(dh.hash().unwrap());
     let rs_hashtable_str = dh.hashtable().unwrap().to_string();
+
+    // sh implementation
+    // ------------------
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path());
+
+    // Verification
+    // ------------
 
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
