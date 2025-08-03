@@ -266,6 +266,36 @@ mod tests {
     }
 
     #[test]
+    fn create_and_hash_hardlink() {
+        let dir = tempdir().expect("Can't create tempdir");
+        // let dir = tempfile::Builder::new()
+        //     .keep(true)
+        //     .tempdir()
+        //     .expect("Can't create tempdir");
+
+        let datafile_path = dir.as_ref().join("datafile");
+        let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+        write!(&mut file, "{}", "Here is some data").expect("Can't write to tempfile");
+
+        let hardlink_path = dir.path().join("hardlink");
+        fs::hard_link(datafile_path, &hardlink_path).expect("Error while creating hardlink");
+
+        let hardlink_data =
+            fs::read_to_string(&hardlink_path).expect("Error while reading data from hardlink");
+        assert_eq!(hardlink_data, "Here is some data");
+
+        let mut pathhash = PathHash::new(&hardlink_path).unwrap();
+        assert_eq!(hardlink_path, pathhash.path());
+
+        assert!(pathhash.hash().is_none());
+        assert!(pathhash.compute_hash().is_ok());
+        assert_eq!(pathhash.hash().unwrap(), b"\x15\xf2\x36\xd5\xf1\x4e\xc9\xbd\x26\x47\xcb\x5d\xd5\x09\xbf\x53\x3c\x31\x4a\xa3\xc7\x11\x9d\x2d\x7b\x70\x46\x6a\xa5\x00\x58\x95");
+
+        dir.close().expect("Can't close tempdir");
+    }
+
+    #[test]
     fn compute_hash_empty() {
         check_compute_hash(TestFileContent::Empty);
     }
