@@ -40,7 +40,7 @@ fn compute_hash_with_sh(dir: &Path) -> (String, String) {
 }
 
 #[test]
-fn sh_with_command() {
+fn with_empty_files_and_check_lc_all_ordering() {
     // Setup
     // ------
 
@@ -122,6 +122,47 @@ fn sh_with_command() {
         rs_hash_str,
         "6a4bcbda9920637f38d636ade37b28c81b638dee3ac8729819e39d63433fdc22"
     );
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn with_random_data() {
+    // Setup
+    // ------
+
+    let dir = common::creating_tempdir(
+        None,
+        2,
+        // specifically crafted to check if sorting with LC_ALL=C is working
+        &["b,foo", "bc,pe", "bcd,ty"][..],
+        1,
+        &["x", "y"][..],
+        2,
+        true,
+    );
+
+    // rs implementation
+    // ------------------
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false)
+        .expect("Can't create DirHash");
+
+    assert!(dh.compute_hash().is_ok());
+
+    let rs_hash_str = hex::encode(dh.hash().unwrap());
+    let rs_hashtable_str = dh.hashtable().unwrap().to_string();
+
+    // sh implementation
+    // ------------------
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path());
+
+    // Verification
+    // ------------
+
+    assert_eq!(sh_hash_str, rs_hash_str);
+    assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
     dir.close().expect("Can't close tempdir");
 }
