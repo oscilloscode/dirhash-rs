@@ -1,7 +1,11 @@
 //! Things to check:
 //! - Compare outputs from rs/sh with random data
 
-use std::{path::Path, process::Command};
+use std::{
+    path::Path,
+    process::Command,
+    time::{Duration, Instant},
+};
 
 use dirhash_rs::dirhash::DirHash;
 
@@ -127,42 +131,51 @@ fn with_empty_files_and_check_lc_all_ordering() {
 }
 
 #[test]
-fn with_random_data() {
+fn comparing_rs_sh_with_random_data() {
+    const TEST_MAX_DURATION: Duration = Duration::from_secs(1);
+    const TEST_MIN_FILES: usize = 1;
+    const TEST_MAX_FILES: usize = 5;
+
     // Setup
     // ------
+    let start = Instant::now();
 
-    let dir = common::creating_tempdir(
-        None,
-        2,
-        // specifically crafted to check if sorting with LC_ALL=C is working
-        &["b,foo", "bc,pe", "bcd,ty"][..],
-        1,
-        &["x", "y"][..],
-        2,
-        true,
-    );
+    while start.elapsed() < TEST_MAX_DURATION {
+        let dir = common::creating_tempdir(
+            None,
+            rand::random_range(TEST_MIN_FILES..=TEST_MAX_FILES),
+            // specifically crafted to check if sorting with LC_ALL=C is working
+            &["b,foo", "bc,pe", "bcd,ty"][..],
+            rand::random_range(TEST_MIN_FILES..=TEST_MAX_FILES),
+            &["x", "y"][..],
+            rand::random_range(TEST_MIN_FILES..=TEST_MAX_FILES),
+            true,
+        );
 
-    // rs implementation
-    // ------------------
+        // rs implementation
+        // ------------------
 
-    let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false)
-        .expect("Can't create DirHash");
+        let mut dh = DirHash::new()
+            .with_files_from_dir(dir.path(), true, false)
+            .expect("Can't create DirHash");
 
-    assert!(dh.compute_hash().is_ok());
+        assert!(dh.compute_hash().is_ok());
 
-    let rs_hash_str = hex::encode(dh.hash().unwrap());
-    let rs_hashtable_str = dh.hashtable().unwrap().to_string();
+        let rs_hash_str = hex::encode(dh.hash().unwrap());
+        let rs_hashtable_str = dh.hashtable().unwrap().to_string();
 
-    // sh implementation
-    // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path());
+        // sh implementation
+        // ------------------
+        let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path());
 
-    // Verification
-    // ------------
+        // Verification
+        // ------------
+        assert_eq!(sh_hash_str, rs_hash_str);
+        assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
-    assert_eq!(sh_hash_str, rs_hash_str);
-    assert_eq!(sh_hashtable_str, rs_hashtable_str);
+        let duration = start.elapsed();
+        eprintln!("Time elapsed: {:?}\n\n", duration);
 
-    dir.close().expect("Can't close tempdir");
+        dir.close().expect("Can't close tempdir");
+    }
 }
