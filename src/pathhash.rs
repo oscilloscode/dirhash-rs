@@ -1,15 +1,15 @@
 //! Test list:
-//! - Other filetypes (links, char device, block dev, socket, pipe)
 //!
 
 use std::{
     fs, io,
+    os::unix::fs::FileTypeExt,
     path::{Path, PathBuf},
 };
 
 use sha2::{Digest, Sha256};
 
-use crate::error::Result;
+use crate::error::{DirHashError, InvalidFileTypeKind, Result};
 
 // TODO: Rename this!!
 pub trait PathHashProvider {
@@ -33,12 +33,48 @@ impl PathHash {
     ///
     /// Currently, `..` and `.` are not resolved.
     pub fn new(path: impl AsRef<Path>) -> Result<Self> {
-        if !path.as_ref().exists() {
-            return Err(io::Error::new(io::ErrorKind::NotFound, "file not found").into());
-        }
-
+        // Put this first, as this is a simple lexical check without accessing the filesystem.
         if !path.as_ref().is_absolute() {
             return Err(io::Error::new(io::ErrorKind::InvalidInput, "path not absolute").into());
+        }
+
+        // We need the metadata to throw errors on invalid file types. Luckily, this will also
+        // return an io::Error (NotFound).
+        let filetype = fs::metadata(&path)?.file_type();
+
+        if filetype.is_dir() {
+            return Err(DirHashError::InvalidFileType(
+                InvalidFileTypeKind::Dir,
+                path.as_ref().to_owned(),
+            ));
+        }
+
+        if filetype.is_block_device() {
+            return Err(DirHashError::InvalidFileType(
+                InvalidFileTypeKind::BlockDevice,
+                path.as_ref().to_owned(),
+            ));
+        }
+
+        if filetype.is_char_device() {
+            return Err(DirHashError::InvalidFileType(
+                InvalidFileTypeKind::CharDevice,
+                path.as_ref().to_owned(),
+            ));
+        }
+
+        if filetype.is_fifo() {
+            return Err(DirHashError::InvalidFileType(
+                InvalidFileTypeKind::FIFO,
+                path.as_ref().to_owned(),
+            ));
+        }
+
+        if filetype.is_socket() {
+            return Err(DirHashError::InvalidFileType(
+                InvalidFileTypeKind::Socket,
+                path.as_ref().to_owned(),
+            ));
         }
 
         Ok(PathHash {
@@ -75,9 +111,10 @@ mod tests {
     use std::collections::HashMap;
     use std::io::{Read, Seek, Write};
     use std::os::unix;
+    use std::os::unix::fs::FileTypeExt;
     use std::sync::OnceLock;
 
-    use crate::error::DirHashError;
+    use crate::error::{DirHashError, InvalidFileTypeKind};
 
     use super::*;
     use fs::File;
@@ -218,7 +255,7 @@ mod tests {
 
     #[test]
     fn create_pathhash_not_absolute() {
-        let err = PathHash::new(".").unwrap_err();
+        let err = PathHash::new("./0").unwrap_err();
         match err {
             DirHashError::Io(io_err) => {
                 assert_eq!(io_err.kind(), io::ErrorKind::InvalidInput);
@@ -293,6 +330,107 @@ mod tests {
         assert_eq!(pathhash.hash().unwrap(), b"\x15\xf2\x36\xd5\xf1\x4e\xc9\xbd\x26\x47\xcb\x5d\xd5\x09\xbf\x53\x3c\x31\x4a\xa3\xc7\x11\x9d\x2d\x7b\x70\x46\x6a\xa5\x00\x58\x95");
 
         dir.close().expect("Can't close tempdir");
+    }
+
+    #[test]
+    fn dir_returns_error() {
+        let dev_path = Path::new("/dev");
+        let dev_metadata = fs::metadata(dev_path).expect("Can't get metadata of /dev");
+        assert!(dev_metadata.file_type().is_dir());
+
+        let err = PathHash::new(dev_path).expect_err("Directory didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::Dir => {
+                    assert_eq!(path, dev_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+    }
+
+    #[test]
+    fn block_device_returns_error() {
+        let sda_path = Path::new("/dev/sda");
+        let sda_metadata = fs::metadata(sda_path).expect("Can't get metadata of /dev/sda");
+        assert!(sda_metadata.file_type().is_block_device());
+
+        let err = PathHash::new(sda_path).expect_err("Block device didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::BlockDevice => {
+                    assert_eq!(path, sda_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+    }
+
+    #[test]
+    fn char_device_returns_error() {
+        let dev_null_path = Path::new("/dev/null");
+        let dev_null_metadata =
+            fs::metadata(dev_null_path).expect("Can't get metadata of /dev/null");
+        assert!(dev_null_metadata.file_type().is_char_device());
+
+        let err = PathHash::new(dev_null_path).expect_err("Char device didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::CharDevice => {
+                    assert_eq!(path, dev_null_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+    }
+
+    #[test]
+    fn fifo_returns_error() {
+        // Is this a good file? Do all Linux distros have this?
+        let initctl_path = Path::new("/run/initctl");
+        let initctl_metadata =
+            fs::metadata(initctl_path).expect("Can't get metadata of /run/initctl");
+        assert!(initctl_metadata.file_type().is_fifo());
+
+        let err = PathHash::new(initctl_path).expect_err("FIFO file didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::FIFO => {
+                    assert_eq!(path, initctl_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+    }
+
+    #[test]
+    fn socket_returns_error() {
+        // Is this a good file? Do all Linux distros have this?
+        let systemd_private_path = Path::new("/run/systemd/private");
+        let systemd_private_metadata =
+            fs::metadata(systemd_private_path).expect("Can't get metadata of /run/systemd/private");
+        assert!(systemd_private_metadata.file_type().is_socket());
+
+        let err =
+            PathHash::new(systemd_private_path).expect_err("Socket file didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::Socket => {
+                    assert_eq!(path, systemd_private_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
     }
 
     #[test]
