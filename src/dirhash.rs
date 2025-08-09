@@ -89,6 +89,10 @@ where
 }
 
 impl DirHash<PathHash> {
+    // This is not as nice as the builder-lite pattern used when adding the files without WalkDir.
+    // How can the builder-lite pattern be applied here as well? Maybe a specific WalkDir type is
+    // required with a build() method that then creates the DirHash. Then builder-lite is used when
+    // adding files manually and a real builder pattern when WalkDir is required.
     pub fn with_files_from_dir(
         mut self,
         path: &Path,
