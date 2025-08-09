@@ -1,8 +1,4 @@
 //! Test list:
-//! - Define and test what happens with sorting two files have the same hash (i.e., same content).
-//!   Probably use the paths to define order.
-//! - Add tests to check that sort() behaves as expected (both for the hash and the path)
-//!
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
