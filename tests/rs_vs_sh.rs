@@ -63,7 +63,7 @@ fn with_empty_files_and_check_lc_all_ordering() {
     // ------------------
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false)
+        .with_files_from_dir(dir.path(), true, false, true)
         .expect("Can't create DirHash");
 
     assert!(dh.compute_hash().is_ok());
@@ -156,7 +156,7 @@ fn comparing_rs_sh_with_random_data() {
         // ------------------
 
         let mut dh = DirHash::new()
-            .with_files_from_dir(dir.path(), true, false)
+            .with_files_from_dir(dir.path(), true, false, true)
             .expect("Can't create DirHash");
 
         assert!(dh.compute_hash().is_ok());

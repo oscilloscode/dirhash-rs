@@ -1,16 +1,16 @@
 //! Things to check:
 //! - Creating DirHash from list of paths, then compute hash
 //! - Add additional list of paths after creation , then compute hash
-//! - Hidden files can be in- and excluded
 //! - Return error when encountering illegal filetype (char dev, block dev, socket, pipe)
 
 use std::{
-    fs::{self},
+    fs::{self, File},
+    io::Write,
     os::unix,
 };
 
 use dirhash_rs::dirhash::DirHash;
-use tempfile::TempDir;
+use tempfile::{tempdir, TempDir};
 
 mod common;
 
@@ -84,7 +84,7 @@ fn with_files_from_dir_dont_follow_symlinks() {
     let dir = create_tempdir_with_links();
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false)
+        .with_files_from_dir(dir.path(), true, false, true)
         .expect("Can't create DirHash");
     assert!(dh.compute_hash().is_ok());
 
@@ -119,7 +119,7 @@ fn with_files_from_dir_follow_symlinks() {
     let dir = create_tempdir_with_links();
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, true)
+        .with_files_from_dir(dir.path(), true, true, true)
         .expect("Can't create DirHash");
     assert!(dh.compute_hash().is_ok());
 
@@ -158,6 +158,75 @@ fn with_files_from_dir_follow_symlinks() {
 }
 
 #[test]
+fn with_files_from_dir_include_hidden_files() {
+    let dir = tempdir().expect("Can't create tempdir");
+    // let dir = tempfile::Builder::new()
+    //     .keep(true)
+    //     .tempdir()
+    //     .expect("Can't create tempdir");
+    //
+    let datafile_path = dir.path().join("datafile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_path = dir.path().join(".hidden");
+    let mut file = File::create(&hidden_path).expect("Error while creating hidden file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    // Hidden files shall be included by default when with_files_from_dir is refactored to builder
+    // pattern
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false, true)
+        .expect("Can't create DirHash");
+    assert!(dh.compute_hash().is_ok());
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./.hidden\n\
+         916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
+    );
+
+    assert_eq!(dh.hash().unwrap(), b"\x3b\x0b\x63\x45\x90\x7e\x1f\xc0\xca\x87\x30\x3f\x16\xc6\x47\xe5\x0e\x29\xd4\xa2\x30\xfa\x45\x11\xe7\x01\xc2\xed\x66\xb5\x95\x20");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn with_files_from_dir_ignore_hidden_files() {
+    let dir = tempdir().expect("Can't create tempdir");
+    // let dir = tempfile::Builder::new()
+    //     .keep(true)
+    //     .tempdir()
+    //     .expect("Can't create tempdir");
+
+    let datafile_path = dir.path().join("datafile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_path = dir.path().join(".hidden");
+    let mut file = File::create(&hidden_path).expect("Error while creating hidden file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false, false)
+        .expect("Can't create DirHash");
+    assert!(dh.compute_hash().is_ok());
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
+    );
+
+    assert_eq!(dh.hash().unwrap(), b"\x0e\x5b\x09\x6d\x50\x7d\x3f\xeb\xf1\x3c\xf2\x7b\x36\x1e\x0b\x4c\x64\x7b\x08\x43\x0e\x22\x45\xeb\xbf\xa1\x86\x06\x72\x17\xa8\xf9");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
 fn with_file_from_dir_no_root_empty_files() {
     let dir = common::creating_tempdir(
         Some(String::from(".tmp_with_file_from_dir_no_root_empty_files")),
@@ -170,7 +239,7 @@ fn with_file_from_dir_no_root_empty_files() {
     );
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), false, false)
+        .with_files_from_dir(dir.path(), false, false, true)
         .expect("Can't create DirHash");
 
     assert!(dh.compute_hash().is_ok());
@@ -215,7 +284,7 @@ fn with_files_from_dir_with_root_empty_files() {
     let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 1, &["x", "y"][..], 2, false);
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false)
+        .with_files_from_dir(dir.path(), true, false, true)
         .expect("Can't create DirHash");
 
     assert!(dh.compute_hash().is_ok());
@@ -303,7 +372,7 @@ fn with_file_from_dir_no_root() {
         .expect("Error while adding data to test file");
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), false, false)
+        .with_files_from_dir(dir.path(), false, false, true)
         .expect("Can't create DirHash");
 
     assert!(dh.compute_hash().is_ok());
@@ -350,7 +419,7 @@ fn with_files_from_dir_with_root() {
     let dir = common::creating_tempdir(None, 3, &["c", "d"][..], 2, &["x", "y", "z"][..], 1, false);
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false)
+        .with_files_from_dir(dir.path(), true, false, true)
         .expect("Can't create DirHash");
 
     // Add data to files

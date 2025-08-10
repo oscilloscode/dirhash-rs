@@ -94,6 +94,7 @@ impl DirHash<PathHash> {
         path: &Path,
         set_root: bool,
         follow_symlinks: bool,
+        include_hidden_files: bool,
     ) -> Result<Self> {
         let mut files: Vec<PathHash> = vec![];
 
@@ -115,6 +116,19 @@ impl DirHash<PathHash> {
             // "file").
             if !entry.file_type().is_file() {
                 println!("Not a file -> skip");
+                continue;
+            }
+
+            if (!include_hidden_files)
+                && entry
+                    .path()
+                    .file_name()
+                    .unwrap()
+                    .to_str()
+                    .unwrap()
+                    .starts_with(".")
+            {
+                println!("Hidden file -> skip");
                 continue;
             }
 
