@@ -100,9 +100,21 @@ impl DirHash<PathHash> {
         for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
             let entry = entry?;
             println!("{:?}", entry);
-            // TODO:
-            // Or should I just filter for files? How are symlinks affected by this?
-            if entry.file_type().is_dir() {
+
+            // From the WalkDir docs:
+            // [If follow_symlinks is true], the yielded DirEntry values represent the target of the
+            // link while the path corresponds to the link. See the DirEntry type for more details.
+            //
+            // Therefore, checking if the entry is a file works for both situations. When
+            // follow_links is false, directory links are obviously not followed and file links also
+            // get skipped (because they have the filetype "link"). If follow_links is true,
+            // directory links are obviously followed with their filetype being "dir" with must be
+            // skipped as PathHash would returns errors for directories. However, WalkDir then
+            // continues in this symlinked directory and yields the contained files. And file links
+            // are now part of the hashing process as they not get the type of their target (i.e.,
+            // "file").
+            if !entry.file_type().is_file() {
+                println!("Not a file -> skip");
                 continue;
             }
 

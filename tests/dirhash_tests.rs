@@ -1,15 +1,161 @@
 //! Things to check:
-//! - Creating DirHash recursively from path, then compute hash
 //! - Creating DirHash from list of paths, then compute hash
 //! - Add additional list of paths after creation , then compute hash
-//! - Symlinks in specified files
+//! - Hidden files can be in- and excluded
 //! - Return error when encountering illegal filetype (char dev, block dev, socket, pipe)
 
-use std::fs;
+use std::{
+    fs::{self},
+    os::unix,
+};
 
 use dirhash_rs::dirhash::DirHash;
+use tempfile::TempDir;
 
 mod common;
+
+// Creates a TempDir with file and directory link, going up- and downwards, respectively. The two
+// files used as file link targets also have their relative path set as their contents.
+//
+// .
+// ├── 0
+// ├── 1
+// ├── a
+// │   ├── 0
+// │   ├── 1
+// │   ├── downwards_dirlink -> /tmp/.tmp6en1HI/b/x
+// │   ├── x
+// │   │   ├── 0
+// │   │   └── 1
+// │   └── y
+// │       ├── 0
+// │       └── 1
+// ├── b
+// │   ├── 0
+// │   ├── 1
+// │   ├── x
+// │   │   ├── 0
+// │   │   ├── 1
+// │   │   └── upwards_dirlink -> /tmp/.tmp6en1HI/a/y
+// │   └── y
+// │       ├── 0
+// │       ├── 1
+// │       └── upwards_link -> /tmp/.tmp6en1HI/1
+// └── downwards_link -> /tmp/.tmp6en1HI/a/0
+fn create_tempdir_with_links() -> TempDir {
+    let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 2, &["x", "y"][..], 2, false);
+
+    fs::write(dir.path().join("a/0"), "a/0").expect("Can't write to tempfile");
+    fs::write(dir.path().join("1"), "1").expect("Can't write to tempfile");
+
+    fs::write(dir.path().join("b/x/0"), "b/x/0").expect("Can't write to tempfile");
+    fs::write(dir.path().join("b/x/1"), "b/x/1").expect("Can't write to tempfile");
+
+    fs::write(dir.path().join("a/y/0"), "a/y/0").expect("Can't write to tempfile");
+    fs::write(dir.path().join("a/y/1"), "a/y/1").expect("Can't write to tempfile");
+
+    // file downwards
+    unix::fs::symlink(dir.path().join("a/0"), dir.path().join("downwards_link"))
+        .expect("Error while creating symlink");
+
+    // file upwards
+    unix::fs::symlink(dir.path().join("1"), dir.path().join("b/y/upwards_link"))
+        .expect("Error while creating symlink");
+
+    // dir downwards
+    unix::fs::symlink(
+        dir.path().join("b/x"),
+        dir.path().join("a/downwards_dirlink"),
+    )
+    .expect("Error while creating symlink");
+
+    // dir upwards
+    unix::fs::symlink(
+        dir.path().join("a/y"),
+        dir.path().join("b/x/upwards_dirlink"),
+    )
+    .expect("Error while creating symlink");
+
+    dir
+}
+
+#[test]
+fn with_files_from_dir_dont_follow_symlinks() {
+    let dir = create_tempdir_with_links();
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false)
+        .expect("Can't create DirHash");
+    assert!(dh.compute_hash().is_ok());
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "2c1e9c3dc66c67faa7bcbddb69f4d2fb70cfffc2ca0188c3a8b2a0b757310c83  ./b/x/1\n\
+         3b57e943f5f5d6649657683d4625b5512c745d010537379548285946b2d4b791  ./a/y/0\n\
+         601bde2d34fb40a2b4f9ff019e5ce3b662b2ecbd0de84a5470f6dd3791293750  ./a/y/1\n\
+         6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b  ./1\n\
+         a99f8bcdeef5f422a751b59057c24d001232640796069fe9655157de31068943  ./b/x/0\n\
+         d7e98967056f4828cb388a7930d88594b59e4374a7927afdd93890273682c804  ./a/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./a/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./a/x/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./a/x/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/y/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/y/1\n"
+    );
+
+    assert_eq!(
+        dh.hash().unwrap(),
+        b"\x86\xd6\xb0\x64\xdc\xf4\x98\x61\x54\x35\xa8\x79\x22\x1a\x1a\x2d\x76\xb9\x69\xdc\x67\xcb\xd3\xc8\xfd\x7f\x35\xf7\x67\xcb\x8e\x10"
+    );
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn with_files_from_dir_follow_symlinks() {
+    let dir = create_tempdir_with_links();
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, true)
+        .expect("Can't create DirHash");
+    assert!(dh.compute_hash().is_ok());
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "2c1e9c3dc66c67faa7bcbddb69f4d2fb70cfffc2ca0188c3a8b2a0b757310c83  ./a/downwards_dirlink/1\n\
+         2c1e9c3dc66c67faa7bcbddb69f4d2fb70cfffc2ca0188c3a8b2a0b757310c83  ./b/x/1\n\
+         3b57e943f5f5d6649657683d4625b5512c745d010537379548285946b2d4b791  ./a/downwards_dirlink/upwards_dirlink/0\n\
+         3b57e943f5f5d6649657683d4625b5512c745d010537379548285946b2d4b791  ./a/y/0\n\
+         3b57e943f5f5d6649657683d4625b5512c745d010537379548285946b2d4b791  ./b/x/upwards_dirlink/0\n\
+         601bde2d34fb40a2b4f9ff019e5ce3b662b2ecbd0de84a5470f6dd3791293750  ./a/downwards_dirlink/upwards_dirlink/1\n\
+         601bde2d34fb40a2b4f9ff019e5ce3b662b2ecbd0de84a5470f6dd3791293750  ./a/y/1\n\
+         601bde2d34fb40a2b4f9ff019e5ce3b662b2ecbd0de84a5470f6dd3791293750  ./b/x/upwards_dirlink/1\n\
+         6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b  ./1\n\
+         6b86b273ff34fce19d6b804eff5a3f5747ada4eaa22f1d49c01e52ddb7875b4b  ./b/y/upwards_link\n\
+         a99f8bcdeef5f422a751b59057c24d001232640796069fe9655157de31068943  ./a/downwards_dirlink/0\n\
+         a99f8bcdeef5f422a751b59057c24d001232640796069fe9655157de31068943  ./b/x/0\n\
+         d7e98967056f4828cb388a7930d88594b59e4374a7927afdd93890273682c804  ./a/0\n\
+         d7e98967056f4828cb388a7930d88594b59e4374a7927afdd93890273682c804  ./downwards_link\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./a/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./a/x/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./a/x/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/y/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/y/1\n"
+    );
+
+    assert_eq!(
+        dh.hash().unwrap(),
+        b"\xa9\xae\x74\x27\xd5\x34\x1a\x8d\xfe\x93\x3b\x11\x8f\xb4\x40\xd6\x9b\x63\x0f\x45\xd2\x90\x93\x0a\xf2\xea\x9d\x2a\x93\x31\x6a\x6b"
+    );
+
+    dir.close().expect("Can't close tempdir");
+}
 
 #[test]
 fn with_file_from_dir_no_root_empty_files() {
