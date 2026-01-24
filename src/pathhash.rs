@@ -353,6 +353,12 @@ mod tests {
 
     #[test]
     fn block_device_returns_error() {
+        let dir = tempdir().expect("Can't create tempdir");
+        // let dir = tempfile::Builder::new()
+        //     .keep(true)
+        //     .tempdir()
+        //     .expect("Can't create tempdir");
+
         let sda_path = Path::new("/dev/sda");
         let sda_metadata = fs::metadata(sda_path).expect("Can't get metadata of /dev/sda");
         assert!(sda_metadata.file_type().is_block_device());
@@ -368,10 +374,35 @@ mod tests {
             },
             _ => panic!("Wrong DirHashError enum variant"),
         }
+
+        // symlink to block device
+        let symlink_path = dir.path().join("symlink");
+        unix::fs::symlink(sda_path, &symlink_path).expect("Error while creating symlink");
+
+        let err = PathHash::new(&symlink_path)
+            .expect_err("Symlink to block device didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::BlockDevice => {
+                    assert_eq!(path, symlink_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+
+        dir.close().expect("Can't close tempdir");
     }
 
     #[test]
     fn char_device_returns_error() {
+        let dir = tempdir().expect("Can't create tempdir");
+        // let dir = tempfile::Builder::new()
+        //     .keep(true)
+        //     .tempdir()
+        //     .expect("Can't create tempdir");
+
         let dev_null_path = Path::new("/dev/null");
         let dev_null_metadata =
             fs::metadata(dev_null_path).expect("Can't get metadata of /dev/null");
@@ -388,10 +419,35 @@ mod tests {
             },
             _ => panic!("Wrong DirHashError enum variant"),
         }
+
+        // symlink to char device
+        let symlink_path = dir.path().join("symlink");
+        unix::fs::symlink(dev_null_path, &symlink_path).expect("Error while creating symlink");
+
+        let err = PathHash::new(&symlink_path)
+            .expect_err("Symlink to char device didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::CharDevice => {
+                    assert_eq!(path, symlink_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+
+        dir.close().expect("Can't close tempdir");
     }
 
     #[test]
     fn fifo_returns_error() {
+        let dir = tempdir().expect("Can't create tempdir");
+        // let dir = tempfile::Builder::new()
+        //     .keep(true)
+        //     .tempdir()
+        //     .expect("Can't create tempdir");
+
         // Is this a good file? Do all Linux distros have this?
         let initctl_path = Path::new("/run/initctl");
         let initctl_metadata =
@@ -409,10 +465,34 @@ mod tests {
             },
             _ => panic!("Wrong DirHashError enum variant"),
         }
+
+        // symlink to FIFO
+        let symlink_path = dir.path().join("symlink");
+        unix::fs::symlink(initctl_path, &symlink_path).expect("Error while creating symlink");
+
+        let err = PathHash::new(&symlink_path).expect_err("Symlink to FIFO didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::FIFO => {
+                    assert_eq!(path, symlink_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+
+        dir.close().expect("Can't close tempdir");
     }
 
     #[test]
     fn socket_returns_error() {
+        let dir = tempdir().expect("Can't create tempdir");
+        // let dir = tempfile::Builder::new()
+        //     .keep(true)
+        //     .tempdir()
+        //     .expect("Can't create tempdir");
+
         // Is this a good file? Do all Linux distros have this?
         let systemd_private_path = Path::new("/run/systemd/private");
         let systemd_private_metadata =
@@ -431,6 +511,26 @@ mod tests {
             },
             _ => panic!("Wrong DirHashError enum variant"),
         }
+
+        // symlink to socket
+        let symlink_path = dir.path().join("symlink");
+        unix::fs::symlink(systemd_private_path, &symlink_path)
+            .expect("Error while creating symlink");
+
+        let err =
+            PathHash::new(&symlink_path).expect_err("Symlink to socket didn't return an error");
+
+        match err {
+            DirHashError::InvalidFileType(filetype, path) => match filetype {
+                InvalidFileTypeKind::Socket => {
+                    assert_eq!(path, symlink_path)
+                }
+                _ => panic!("Wrong InvalidFileType enum variant"),
+            },
+            _ => panic!("Wrong DirHashError enum variant"),
+        }
+
+        dir.close().expect("Can't close tempdir");
     }
 
     #[test]
