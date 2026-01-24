@@ -1,11 +1,33 @@
-use std::env;
+use std::{env, os::unix::fs::FileTypeExt};
 use walkdir::WalkDir;
 
 fn main() {
     let path = env::current_dir().unwrap();
-    for entry in WalkDir::new(path) {
-        println!("{}", entry.unwrap().path().display());
+    for entry in WalkDir::new(path).follow_links(false) {
+        let entry = entry.unwrap();
+        println!(
+            "type: {:?} block: {} char: {} fifo: {} socket: {} path: {}",
+            entry.file_type(),
+            entry.file_type().is_block_device(),
+            entry.file_type().is_char_device(),
+            entry.file_type().is_fifo(),
+            entry.file_type().is_socket(),
+            entry.path().display()
+        );
     }
+
+    // for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
+    //     let entry = entry?;
+    //     println!("{:?}", entry);
+    //     // TODO:
+    //     // Or should I just filter for files? How are symlinks affected by this?
+    //     if entry.file_type().is_dir() {
+    //         continue;
+    //     }
+
+    //     let pathhash = PathHash::new(entry.path())?;
+    //     files.push(pathhash);
+    // }
 }
 
 // use dirhash_rs::pathhash::pathhashspy::PathHashSpy;
