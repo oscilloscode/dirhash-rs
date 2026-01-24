@@ -6,9 +6,20 @@ use std::path::{Path, PathBuf};
 use sha2::{Digest, Sha256};
 use walkdir::WalkDir;
 
-use crate::error::Result;
+use crate::error::{DirHashError, InvalidFileTypeKind, Result};
 use crate::hashtable::{HashTable, HashTableEntry};
 use crate::pathhash::{PathHash, PathHashProvider};
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
+pub enum IgnoreReason {
+    Dir,
+    BlockDevice,
+    CharDevice,
+    FIFO,
+    Socket,
+    Hidden,
+    Symlink,
+}
 
 #[derive(Clone, Default, Debug, Hash, PartialEq, PartialOrd, Eq, Ord)]
 pub struct DirHash<T> {
@@ -16,6 +27,7 @@ pub struct DirHash<T> {
     pathhashvec: Vec<T>,
     hash: Option<[u8; 32]>,
     hashtable: Option<HashTable>,
+    ignored: Vec<(PathBuf, IgnoreReason)>,
 }
 
 impl<T> DirHash<T>
@@ -28,6 +40,7 @@ where
             pathhashvec: Vec::new(),
             hash: None,
             hashtable: None,
+            ignored: Vec::new(),
         }
     }
 
@@ -51,6 +64,10 @@ where
 
     pub fn hashtable(&self) -> Option<&HashTable> {
         self.hashtable.as_ref()
+    }
+
+    pub fn ignored(&self) -> &[(PathBuf, IgnoreReason)] {
+        self.ignored.as_slice()
     }
 
     /// Computes hash of all PathHashs.
@@ -95,6 +112,7 @@ impl DirHash<PathHash> {
         set_root: bool,
         follow_symlinks: bool,
         include_hidden_files: bool,
+        ignore_invalid_filetypes: bool,
     ) -> Result<Self> {
         let mut files: Vec<PathHash> = vec![];
 
@@ -106,16 +124,24 @@ impl DirHash<PathHash> {
             // [If follow_symlinks is true], the yielded DirEntry values represent the target of the
             // link while the path corresponds to the link. See the DirEntry type for more details.
             //
-            // Therefore, checking if the entry is a file works for both situations. When
-            // follow_links is false, directory links are obviously not followed and file links also
-            // get skipped (because they have the filetype "link"). If follow_links is true,
-            // directory links are obviously followed with their filetype being "dir" with must be
-            // skipped as PathHash would returns errors for directories. However, WalkDir then
-            // continues in this symlinked directory and yields the contained files. And file links
-            // are now part of the hashing process as they not get the type of their target (i.e.,
-            // "file").
-            if !entry.file_type().is_file() {
-                println!("Not a file -> skip");
+            // Therefore, checking if the filetype of an entry works for both situations. When
+            // follow_links is false, directory links are obviously not followed by WalkDir, and
+            // file and dir links get added to the ignored list (because they have the filetype
+            // "link"). If follow_links is true, directory links are obviously followed by WalkDir
+            // with their filetype being "dir". This must be skipped as PathHash returns errors for
+            // directories. However, WalkDir then continues in this symlinked directory and yields
+            // the contained files. And file links are now part of the hashing process as they now
+            // get the type of their target (i.e., "file").
+
+            if entry.file_type().is_dir() {
+                println!("Directory -> skip");
+                continue;
+            }
+
+            if entry.file_type().is_symlink() {
+                println!("Symlink -> skip");
+                self.ignored
+                    .push((entry.path().to_owned(), IgnoreReason::Symlink));
                 continue;
             }
 
@@ -129,16 +155,48 @@ impl DirHash<PathHash> {
                     .starts_with(".")
             {
                 println!("Hidden file -> skip");
+                self.ignored
+                    .push((entry.path().to_owned(), IgnoreReason::Hidden));
                 continue;
             }
 
-            let pathhash = PathHash::new(entry.path())?;
-            files.push(pathhash);
+            // TODO: help...? how can this be improved?
+            match PathHash::new(entry.path()) {
+                Ok(ph) => files.push(ph),
+                Err(e) => {
+                    if ignore_invalid_filetypes {
+                        if let DirHashError::InvalidFileType(filetype, path) = e {
+                            match filetype {
+                                InvalidFileTypeKind::Dir => {
+                                    self.ignored.push((path.to_owned(), IgnoreReason::Dir))
+                                }
+
+                                InvalidFileTypeKind::BlockDevice => self
+                                    .ignored
+                                    .push((path.to_owned(), IgnoreReason::BlockDevice)),
+                                InvalidFileTypeKind::CharDevice => self
+                                    .ignored
+                                    .push((path.to_owned(), IgnoreReason::CharDevice)),
+                                InvalidFileTypeKind::FIFO => {
+                                    self.ignored.push((path.to_owned(), IgnoreReason::FIFO))
+                                }
+                                InvalidFileTypeKind::Socket => {
+                                    self.ignored.push((path.to_owned(), IgnoreReason::Socket))
+                                }
+                            }
+                        }
+                    } else {
+                        return Err(e);
+                    }
+                }
+            }
         }
 
         if set_root {
             self.root = Some(path.to_owned());
         }
+
+        self.ignored.sort();
 
         self.pathhashvec = files;
         Ok(self)
@@ -218,6 +276,15 @@ mod tests {
             "0101010101010101010101010101010101010101010101010101010101010101  /path0\n\
              ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff  /path1\n"
         );
+    }
+
+    #[test]
+    fn ignored_getter() {
+        let spies: Vec<PathHashSpy> = vec![];
+        let mut dh = DirHash::new().with_files(spies);
+        assert_eq!(dh.ignored(), &[]);
+        dh.ignored.push((PathBuf::from("/dir"), IgnoreReason::Dir));
+        assert_eq!(dh.ignored(), &[(PathBuf::from("/dir"), IgnoreReason::Dir)]);
     }
 
     #[test]

@@ -6,10 +6,14 @@
 use std::{
     fs::{self, File},
     io::Write,
-    os::unix,
+    os::unix::{self, fs::FileTypeExt},
+    path::Path,
 };
 
-use dirhash_rs::dirhash::DirHash;
+use dirhash_rs::{
+    dirhash::{DirHash, IgnoreReason},
+    error::{DirHashError, InvalidFileTypeKind},
+};
 use tempfile::{tempdir, TempDir};
 
 mod common;
@@ -84,8 +88,25 @@ fn with_files_from_dir_dont_follow_symlinks() {
     let dir = create_tempdir_with_links();
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false, true)
+        .with_files_from_dir(dir.path(), true, false, true, false)
         .expect("Can't create DirHash");
+
+    assert_eq!(
+        dh.ignored(),
+        vec![
+            (
+                dir.path().join("a/downwards_dirlink"),
+                IgnoreReason::Symlink
+            ),
+            (
+                dir.path().join("b/x/upwards_dirlink"),
+                IgnoreReason::Symlink
+            ),
+            (dir.path().join("b/y/upwards_link"), IgnoreReason::Symlink),
+            (dir.path().join("downwards_link"), IgnoreReason::Symlink)
+        ]
+    );
+
     assert!(dh.compute_hash().is_ok());
 
     assert_eq!(
@@ -119,8 +140,10 @@ fn with_files_from_dir_follow_symlinks() {
     let dir = create_tempdir_with_links();
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, true, true)
+        .with_files_from_dir(dir.path(), true, true, true, false)
         .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored().len(), 0);
     assert!(dh.compute_hash().is_ok());
 
     assert_eq!(
@@ -178,8 +201,10 @@ fn with_files_from_dir_include_hidden_files() {
     // Hidden files shall be included by default when with_files_from_dir is refactored to builder
     // pattern
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false, true)
+        .with_files_from_dir(dir.path(), true, false, true, false)
         .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored().len(), 0);
     assert!(dh.compute_hash().is_ok());
 
     assert_eq!(
@@ -212,8 +237,11 @@ fn with_files_from_dir_ignore_hidden_files() {
     write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false, false)
+        .with_files_from_dir(dir.path(), true, false, false, false)
         .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored(), vec![(hidden_path, IgnoreReason::Hidden)]);
+
     assert!(dh.compute_hash().is_ok());
 
     assert_eq!(
@@ -239,9 +267,10 @@ fn with_file_from_dir_no_root_empty_files() {
     );
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), false, false, true)
+        .with_files_from_dir(dir.path(), false, false, true, false)
         .expect("Can't create DirHash");
 
+    assert_eq!(dh.ignored().len(), 0);
     assert!(dh.compute_hash().is_ok());
 
     // Hash of various empty files in tree structure:
@@ -284,9 +313,10 @@ fn with_files_from_dir_with_root_empty_files() {
     let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 1, &["x", "y"][..], 2, false);
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false, true)
+        .with_files_from_dir(dir.path(), true, false, true, false)
         .expect("Can't create DirHash");
 
+    assert_eq!(dh.ignored().len(), 0);
     assert!(dh.compute_hash().is_ok());
 
     // Hash of various empty files in tree structure:
@@ -372,9 +402,10 @@ fn with_file_from_dir_no_root() {
         .expect("Error while adding data to test file");
 
     let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), false, false, true)
+        .with_files_from_dir(dir.path(), false, false, true, false)
         .expect("Can't create DirHash");
 
+    assert_eq!(dh.ignored().len(), 0);
     assert!(dh.compute_hash().is_ok());
 
     // Hash of various files in tree structure:
@@ -418,10 +449,6 @@ fn with_file_from_dir_no_root() {
 fn with_files_from_dir_with_root() {
     let dir = common::creating_tempdir(None, 3, &["c", "d"][..], 2, &["x", "y", "z"][..], 1, false);
 
-    let mut dh = DirHash::new()
-        .with_files_from_dir(dir.path(), true, false, true)
-        .expect("Can't create DirHash");
-
     // Add data to files
     fs::write(dir.path().join("0"), b"hallo\n").expect("Error while adding data to test file");
     fs::write(dir.path().join("d/1"), b"apple\nbread\ncherry\n")
@@ -454,6 +481,12 @@ fn with_files_from_dir_with_root() {
     )
     .expect("Error while adding data to test file");
     fs::write(dir.path().join("c/0"), b"DirHash\n").expect("Error while adding data to test file");
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false, true, false)
+        .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored().len(), 0);
 
     assert!(dh.compute_hash().is_ok());
 
@@ -491,6 +524,229 @@ fn with_files_from_dir_with_root() {
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./c/y/0\n"
     );
     assert_eq!(dh.hash().unwrap(), b"\x64\xea\xbf\x7d\xed\x6f\x1b\x97\x4c\x5a\x26\x66\xed\x43\xd3\xb1\xdf\xc7\xdb\xc2\xc2\x89\xed\xe9\x18\x0b\x6b\xbd\x3b\x22\x33\x07");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn with_files_from_dir_invalid_filetypes() {
+    let dir = common::creating_tempdir(None, 3, &["d", "e"][..], 2, &["r", "s", "t"][..], 3, false);
+
+    // Adding links to invalid filetypes, as this is significantly easier than creating them all.
+    // When activating "follow_links", walkdir returns the type of the target file instead of the
+    // "link" file type for the link.
+
+    // block device
+    let sda_path = Path::new("/dev/sda");
+    let sda_metadata = fs::metadata(sda_path).expect("Can't get metadata of /dev/sda");
+    assert!(sda_metadata.file_type().is_block_device());
+
+    let block_dev_link = dir.path().join("block_device_link");
+    unix::fs::symlink(sda_path, &block_dev_link).expect("Error while creating symlink");
+
+    let err = DirHash::new()
+        .with_files_from_dir(dir.path(), true, true, true, false)
+        .expect_err("Block device in files didn't result in error");
+
+    match err {
+        DirHashError::InvalidFileType(filetype, _) => match filetype {
+            InvalidFileTypeKind::BlockDevice => {}
+            _ => panic!("Wrong InvalidFileType enum variant"),
+        },
+        _ => panic!("Wrong DirHashError enum variant"),
+    }
+
+    fs::remove_file(block_dev_link).expect("Error while deleting symlink");
+
+    // character device
+    let dev_null_path = Path::new("/dev/null");
+    let dev_null_metadata = fs::metadata(dev_null_path).expect("Can't get metadata of /dev/null");
+    assert!(dev_null_metadata.file_type().is_char_device());
+
+    let char_dev_link = dir.path().join("d/s/char_device_link");
+    unix::fs::symlink(dev_null_path, &char_dev_link).expect("Error while creating symlink");
+
+    let err = DirHash::new()
+        .with_files_from_dir(dir.path(), true, true, true, false)
+        .expect_err("Char device in files didn't result in error");
+
+    match err {
+        DirHashError::InvalidFileType(filetype, _) => match filetype {
+            InvalidFileTypeKind::CharDevice => {}
+            _ => panic!("Wrong InvalidFileType enum variant"),
+        },
+        _ => panic!("Wrong DirHashError enum variant"),
+    }
+
+    fs::remove_file(char_dev_link).expect("Error while deleting symlink");
+
+    // fifo
+    // Is this a good file? Do all Linux distros have this?
+    let initctl_path = Path::new("/run/initctl");
+    let initctl_metadata = fs::metadata(initctl_path).expect("Can't get metadata of /run/initctl");
+    assert!(initctl_metadata.file_type().is_fifo());
+
+    let fifo_link = dir.path().join("e/fifo_link");
+    unix::fs::symlink(initctl_path, &fifo_link).expect("Error while creating symlink");
+
+    let err = DirHash::new()
+        .with_files_from_dir(dir.path(), true, true, true, false)
+        .expect_err("Fifo in files didn't result in error");
+
+    match err {
+        DirHashError::InvalidFileType(filetype, _) => match filetype {
+            InvalidFileTypeKind::FIFO => {}
+            _ => panic!("Wrong InvalidFileType enum variant"),
+        },
+        _ => panic!("Wrong DirHashError enum variant"),
+    }
+
+    fs::remove_file(fifo_link).expect("Error while deleting symlink");
+
+    // socket
+    // Is this a good file? Do all Linux distros have this?
+    let systemd_private_path = Path::new("/run/systemd/private");
+    let systemd_private_metadata =
+        fs::metadata(systemd_private_path).expect("Can't get metadata of /run/systemd/private");
+    assert!(systemd_private_metadata.file_type().is_socket());
+
+    let socket_link = dir.path().join("e/r/socket_link");
+    unix::fs::symlink(systemd_private_path, &socket_link).expect("Error while creating symlink");
+
+    let err = DirHash::new()
+        .with_files_from_dir(dir.path(), true, true, true, false)
+        .expect_err("Socket in files didn't result in error");
+
+    match err {
+        DirHashError::InvalidFileType(filetype, _) => match filetype {
+            InvalidFileTypeKind::Socket => {}
+            _ => panic!("Wrong InvalidFileType enum variant"),
+        },
+        _ => panic!("Wrong DirHashError enum variant"),
+    }
+
+    fs::remove_file(socket_link).expect("Error while deleting symlink");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn with_files_from_dir_invalid_filetypes_ignore() {
+    let dir = common::creating_tempdir(None, 3, &["d", "e"][..], 2, &["r", "s", "t"][..], 3, false);
+
+    // Adding links to invalid filetypes, as this is significantly easier than creating them all.
+    // When activating "follow_links", walkdir returns the type of the target file instead of the
+    // "link" file type for the link.
+
+    // block device
+    let sda_path = Path::new("/dev/sda");
+    let sda_metadata = fs::metadata(sda_path).expect("Can't get metadata of /dev/sda");
+    assert!(sda_metadata.file_type().is_block_device());
+
+    let block_dev_link = dir.path().join("block_device_link");
+    unix::fs::symlink(sda_path, &block_dev_link).expect("Error while creating symlink");
+
+    // character device
+    let dev_null_path = Path::new("/dev/null");
+    let dev_null_metadata = fs::metadata(dev_null_path).expect("Can't get metadata of /dev/null");
+    assert!(dev_null_metadata.file_type().is_char_device());
+
+    let char_dev_link = dir.path().join("e/char_device_link");
+    unix::fs::symlink(dev_null_path, &char_dev_link).expect("Error while creating symlink");
+
+    // fifo
+    // Is this a good file? Do all Linux distros have this?
+    let initctl_path = Path::new("/run/initctl");
+    let initctl_metadata = fs::metadata(initctl_path).expect("Can't get metadata of /run/initctl");
+    assert!(initctl_metadata.file_type().is_fifo());
+
+    let fifo_link = dir.path().join("d/s/fifo_link");
+    unix::fs::symlink(initctl_path, &fifo_link).expect("Error while creating symlink");
+
+    // socket
+    // Is this a good file? Do all Linux distros have this?
+    let systemd_private_path = Path::new("/run/systemd/private");
+    let systemd_private_metadata =
+        fs::metadata(systemd_private_path).expect("Can't get metadata of /run/systemd/private");
+    assert!(systemd_private_metadata.file_type().is_socket());
+
+    let socket_link = dir.path().join("d/r/socket_link");
+    unix::fs::symlink(systemd_private_path, &socket_link).expect("Error while creating symlink");
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, true, true, true)
+        .expect("Can't create DirHash");
+
+    assert_eq!(
+        dh.ignored(),
+        vec![
+            (block_dev_link, IgnoreReason::BlockDevice),
+            (socket_link, IgnoreReason::Socket),
+            (fifo_link, IgnoreReason::FIFO),
+            (char_dev_link, IgnoreReason::CharDevice),
+        ]
+    );
+
+    assert!(dh.compute_hash().is_ok());
+
+    // Hash of various empty files in tree structure:
+    //
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/2
+    //
+    // -> 4778b420c8834f6e833db5be5ecab1864f2d3740b576f790fe7376fe43ab096d
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/2\n"
+    );
+    assert_eq!(dh.hash().unwrap(), b"\x47\x78\xb4\x20\xc8\x83\x4f\x6e\x83\x3d\xb5\xbe\x5e\xca\xb1\x86\x4f\x2d\x37\x40\xb5\x76\xf7\x90\xfe\x73\x76\xfe\x43\xab\x09\x6d");
 
     dir.close().expect("Can't close tempdir");
 }
