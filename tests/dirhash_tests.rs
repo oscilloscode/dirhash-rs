@@ -14,78 +14,13 @@ use dirhash_rs::{
     dirhash::{DirHash, IgnoreReason},
     error::{DirHashError, InvalidFileTypeKind},
 };
-use tempfile::{tempdir, TempDir};
+use tempfile::tempdir;
 
 mod common;
 
-// Creates a TempDir with file and directory link, going up- and downwards, respectively. The two
-// files used as file link targets also have their relative path set as their contents.
-//
-// .
-// ├── 0
-// ├── 1
-// ├── a
-// │   ├── 0
-// │   ├── 1
-// │   ├── downwards_dirlink -> /tmp/.tmp6en1HI/b/x
-// │   ├── x
-// │   │   ├── 0
-// │   │   └── 1
-// │   └── y
-// │       ├── 0
-// │       └── 1
-// ├── b
-// │   ├── 0
-// │   ├── 1
-// │   ├── x
-// │   │   ├── 0
-// │   │   ├── 1
-// │   │   └── upwards_dirlink -> /tmp/.tmp6en1HI/a/y
-// │   └── y
-// │       ├── 0
-// │       ├── 1
-// │       └── upwards_link -> /tmp/.tmp6en1HI/1
-// └── downwards_link -> /tmp/.tmp6en1HI/a/0
-fn create_tempdir_with_links() -> TempDir {
-    let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 2, &["x", "y"][..], 2, false);
-
-    fs::write(dir.path().join("a/0"), "a/0").expect("Can't write to tempfile");
-    fs::write(dir.path().join("1"), "1").expect("Can't write to tempfile");
-
-    fs::write(dir.path().join("b/x/0"), "b/x/0").expect("Can't write to tempfile");
-    fs::write(dir.path().join("b/x/1"), "b/x/1").expect("Can't write to tempfile");
-
-    fs::write(dir.path().join("a/y/0"), "a/y/0").expect("Can't write to tempfile");
-    fs::write(dir.path().join("a/y/1"), "a/y/1").expect("Can't write to tempfile");
-
-    // file downwards
-    unix::fs::symlink(dir.path().join("a/0"), dir.path().join("downwards_link"))
-        .expect("Error while creating symlink");
-
-    // file upwards
-    unix::fs::symlink(dir.path().join("1"), dir.path().join("b/y/upwards_link"))
-        .expect("Error while creating symlink");
-
-    // dir downwards
-    unix::fs::symlink(
-        dir.path().join("b/x"),
-        dir.path().join("a/downwards_dirlink"),
-    )
-    .expect("Error while creating symlink");
-
-    // dir upwards
-    unix::fs::symlink(
-        dir.path().join("a/y"),
-        dir.path().join("b/x/upwards_dirlink"),
-    )
-    .expect("Error while creating symlink");
-
-    dir
-}
-
 #[test]
 fn with_files_from_dir_dont_follow_symlinks() {
-    let dir = create_tempdir_with_links();
+    let dir = common::create_tempdir_with_links();
 
     let mut dh = DirHash::new()
         .with_files_from_dir(dir.path(), true, false, true, false)
@@ -137,7 +72,7 @@ fn with_files_from_dir_dont_follow_symlinks() {
 
 #[test]
 fn with_files_from_dir_follow_symlinks() {
-    let dir = create_tempdir_with_links();
+    let dir = common::create_tempdir_with_links();
 
     let mut dh = DirHash::new()
         .with_files_from_dir(dir.path(), true, true, true, false)
