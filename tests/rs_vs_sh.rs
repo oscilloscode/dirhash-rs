@@ -2,7 +2,8 @@
 //! - Compare outputs from rs/sh with random data
 
 use std::{
-    fs,
+    fs::{self, File},
+    io::Write,
     os::unix::{self, fs::FileTypeExt},
     path::Path,
     process::Command,
@@ -10,23 +11,36 @@ use std::{
 };
 
 use dirhash_rs::dirhash::{DirHash, IgnoreReason};
+use tempfile::tempdir;
 
 mod common;
 
 // Convenience function for computing hashtable and hash with sh (fd & sha256sum)
-fn compute_hash_with_sh(dir: &Path, follow_links: bool) -> (String, String) {
+fn compute_hash_with_sh(
+    dir: &Path,
+    follow_links: bool,
+    include_hidden_files: bool,
+) -> (String, String) {
     let mut cmd = Command::new("bash");
     cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
+
+    let mut fd_args = String::new();
 
     if follow_links {
         // --follow will not only go into symlinked directories, but also follow symlinked files.
         // Then, the filetype of the target file is used when matching the "-t" flag. Thus, only the
         // type "file" (and not "link") should be taken into account. This behavior is similar to
         // following links and the resulting target types when using walkdir.
-        cmd.arg("fd --follow -t f --exec sha256sum | sort");
-    } else {
-        cmd.arg("fd -t f --exec sha256sum | sort");
+        fd_args.push_str("--follow ");
     }
+
+    if include_hidden_files {
+        fd_args.push_str("--hidden ");
+    }
+
+    cmd.arg(format!("fd {} -t f --exec sha256sum | sort", fd_args));
+
+    eprintln!("Cmd: {:?}", cmd);
 
     let hash_list_output = cmd.output().expect("Command failed");
 
@@ -37,11 +51,12 @@ fn compute_hash_with_sh(dir: &Path, follow_links: bool) -> (String, String) {
     let mut cmd = Command::new("bash");
     cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
 
-    if follow_links {
-        cmd.arg("fd --follow -t f --exec sha256sum | sort | sha256sum");
-    } else {
-        cmd.arg("fd -t f --exec sha256sum | sort | sha256sum");
-    }
+    cmd.arg(format!(
+        "fd {} -t f --exec sha256sum | sort | sha256sum",
+        fd_args
+    ));
+
+    eprintln!("Cmd: {:?}", cmd);
 
     let rec_hash_output = cmd.output().expect("Command failed");
     let rec_hash = String::from_utf8_lossy(&rec_hash_output.stdout);
@@ -86,7 +101,7 @@ fn with_empty_files_and_check_lc_all_ordering() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false);
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
 
     // Verification
     // ------------
@@ -213,7 +228,7 @@ fn ignoring_invalid_files() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), true);
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), true, false);
 
     // Verification
     // ------------
@@ -284,7 +299,7 @@ fn following_symlinks() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), true);
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), true, false);
 
     // Verification
     // ------------
@@ -363,7 +378,7 @@ fn not_following_symlinks() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false);
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
 
     // Verification
     // ------------
@@ -393,6 +408,115 @@ fn not_following_symlinks() {
         dh.hash().unwrap(),
         b"\x86\xd6\xb0\x64\xdc\xf4\x98\x61\x54\x35\xa8\x79\x22\x1a\x1a\x2d\x76\xb9\x69\xdc\x67\xcb\xd3\xc8\xfd\x7f\x35\xf7\x67\xcb\x8e\x10"
     );
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn including_hidden_files() {
+    // Setup
+    // ------
+
+    let dir = tempdir().expect("Can't create tempdir");
+    // let dir = tempfile::Builder::new()
+    //     .keep(true)
+    //     .tempdir()
+    //     .expect("Can't create tempdir");
+
+    let datafile_path = dir.path().join("datafile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_path = dir.path().join(".hidden");
+    let mut file = File::create(&hidden_path).expect("Error while creating hidden file");
+
+    write!(&mut file, "{}", "hidden test data").expect("Can't write to tempfile");
+
+    // rs implementation
+    // ------------------
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false, true, false)
+        .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored().len(), 0);
+    assert!(dh.compute_hash().is_ok());
+
+    let rs_hash_str = hex::encode(dh.hash().unwrap());
+    let rs_hashtable_str = dh.hashtable().unwrap().to_string();
+
+    // sh implementation
+    // ------------------
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, true);
+
+    // Verification
+    // ------------
+
+    assert_eq!(sh_hash_str, rs_hash_str);
+    assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "2a5fe7861edde7d25b095fb793743c343ee075069cf0c66db8a2587dc84a0710  ./.hidden\n\
+         916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
+    );
+
+    assert_eq!(dh.hash().unwrap(), b"\xa4\x55\x43\xdc\x9c\x0e\x28\xcf\x4e\xbf\x10\xe9\x52\x7a\x0d\xa0\x6f\x8f\x37\x7e\x38\x2a\x29\x72\x98\x9a\xb6\x66\xb1\x23\x64\x28");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn ignoring_hidden_files() {
+    // Setup
+    // ------
+
+    let dir = tempdir().expect("Can't create tempdir");
+    // let dir = tempfile::Builder::new()
+    //     .keep(true)
+    //     .tempdir()
+    //     .expect("Can't create tempdir");
+
+    let datafile_path = dir.path().join("datafile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_path = dir.path().join(".hidden");
+    let mut file = File::create(&hidden_path).expect("Error while creating hidden file");
+
+    write!(&mut file, "{}", "hidden test data").expect("Can't write to tempfile");
+
+    // rs implementation
+    // ------------------
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false, false, false)
+        .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored(), vec![(hidden_path, IgnoreReason::Hidden)]);
+    assert!(dh.compute_hash().is_ok());
+
+    let rs_hash_str = hex::encode(dh.hash().unwrap());
+    let rs_hashtable_str = dh.hashtable().unwrap().to_string();
+
+    // sh implementation
+    // ------------------
+    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
+
+    // Verification
+    // ------------
+
+    assert_eq!(sh_hash_str, rs_hash_str);
+    assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
+    );
+
+    assert_eq!(dh.hash().unwrap(), b"\x0e\x5b\x09\x6d\x50\x7d\x3f\xeb\xf1\x3c\xf2\x7b\x36\x1e\x0b\x4c\x64\x7b\x08\x43\x0e\x22\x45\xeb\xbf\xa1\x86\x06\x72\x17\xa8\xf9");
 
     dir.close().expect("Can't close tempdir");
 }
@@ -433,7 +557,7 @@ fn comparing_rs_sh_with_random_data() {
 
         // sh implementation
         // ------------------
-        let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false);
+        let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
 
         // Verification
         // ------------
