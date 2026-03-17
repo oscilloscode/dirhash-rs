@@ -1,0 +1,7 @@
+dir_path = "/dev"
+# block_dev_path = "/dev/sda"
+block_dev_path = "/dev/nvme0n1"
+char_dev_path = "/dev/null"
+# fifo_path = "/run/initctl"
+fifo_path = "/run/systemd/inaccessible/fifo"
+socket_path = "/run/systemd/private"

@@ -18,6 +18,12 @@ pub mod error;
 pub mod hashtable;
 pub mod pathhash;
 
+// TODO: how can i make this available in all of the crate but not "outside"? this is probably
+// necessary as the integration tests are compiled as their own crate (i.e. there the dirhash crate
+// doens't know the difference between integration tests and other crates)
+// maybe I can hide it behind a testing feature?
+pub mod test_config;
+
 // pub struct DirHash {
 //     path: PathBuf,
 // }

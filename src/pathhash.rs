@@ -115,6 +115,7 @@ mod tests {
     use std::sync::OnceLock;
 
     use crate::error::{DirHashError, InvalidFileTypeKind};
+    use crate::test_config;
 
     use super::*;
     use fs::File;
@@ -334,16 +335,16 @@ mod tests {
 
     #[test]
     fn dir_returns_error() {
-        let dev_path = Path::new("/dev");
-        let dev_metadata = fs::metadata(dev_path).expect("Can't get metadata of /dev");
-        assert!(dev_metadata.file_type().is_dir());
+        let dir_path = test_config::get_filepath_config().dir;
+        let dir_metadata = fs::metadata(&dir_path).expect("Can't get metadata of directory");
+        assert!(dir_metadata.file_type().is_dir());
 
-        let err = PathHash::new(dev_path).expect_err("Directory didn't return an error");
+        let err = PathHash::new(&dir_path).expect_err("Directory didn't return an error");
 
         match err {
             DirHashError::InvalidFileType(filetype, path) => match filetype {
                 InvalidFileTypeKind::Dir => {
-                    assert_eq!(path, dev_path)
+                    assert_eq!(path, dir_path)
                 }
                 _ => panic!("Wrong InvalidFileType enum variant"),
             },
@@ -359,16 +360,17 @@ mod tests {
         //     .tempdir()
         //     .expect("Can't create tempdir");
 
-        let sda_path = Path::new("/dev/sda");
-        let sda_metadata = fs::metadata(sda_path).expect("Can't get metadata of /dev/sda");
-        assert!(sda_metadata.file_type().is_block_device());
+        let block_dev_path = test_config::get_filepath_config().block_dev;
+        let block_dev_metadata =
+            fs::metadata(&block_dev_path).expect("Can't get metadata of block device");
+        assert!(block_dev_metadata.file_type().is_block_device());
 
-        let err = PathHash::new(sda_path).expect_err("Block device didn't return an error");
+        let err = PathHash::new(&block_dev_path).expect_err("Block device didn't return an error");
 
         match err {
             DirHashError::InvalidFileType(filetype, path) => match filetype {
                 InvalidFileTypeKind::BlockDevice => {
-                    assert_eq!(path, sda_path)
+                    assert_eq!(path, block_dev_path)
                 }
                 _ => panic!("Wrong InvalidFileType enum variant"),
             },
@@ -377,7 +379,7 @@ mod tests {
 
         // symlink to block device
         let symlink_path = dir.path().join("symlink");
-        unix::fs::symlink(sda_path, &symlink_path).expect("Error while creating symlink");
+        unix::fs::symlink(block_dev_path, &symlink_path).expect("Error while creating symlink");
 
         let err = PathHash::new(&symlink_path)
             .expect_err("Symlink to block device didn't return an error");
@@ -403,17 +405,17 @@ mod tests {
         //     .tempdir()
         //     .expect("Can't create tempdir");
 
-        let dev_null_path = Path::new("/dev/null");
-        let dev_null_metadata =
-            fs::metadata(dev_null_path).expect("Can't get metadata of /dev/null");
-        assert!(dev_null_metadata.file_type().is_char_device());
+        let char_dev_path = test_config::get_filepath_config().char_dev;
+        let char_dev_metadata =
+            fs::metadata(&char_dev_path).expect("Can't get metadata of char device");
+        assert!(char_dev_metadata.file_type().is_char_device());
 
-        let err = PathHash::new(dev_null_path).expect_err("Char device didn't return an error");
+        let err = PathHash::new(&char_dev_path).expect_err("Char device didn't return an error");
 
         match err {
             DirHashError::InvalidFileType(filetype, path) => match filetype {
                 InvalidFileTypeKind::CharDevice => {
-                    assert_eq!(path, dev_null_path)
+                    assert_eq!(path, char_dev_path)
                 }
                 _ => panic!("Wrong InvalidFileType enum variant"),
             },
@@ -422,7 +424,7 @@ mod tests {
 
         // symlink to char device
         let symlink_path = dir.path().join("symlink");
-        unix::fs::symlink(dev_null_path, &symlink_path).expect("Error while creating symlink");
+        unix::fs::symlink(char_dev_path, &symlink_path).expect("Error while creating symlink");
 
         let err = PathHash::new(&symlink_path)
             .expect_err("Symlink to char device didn't return an error");
@@ -448,18 +450,16 @@ mod tests {
         //     .tempdir()
         //     .expect("Can't create tempdir");
 
-        // Is this a good file? Do all Linux distros have this?
-        let initctl_path = Path::new("/run/initctl");
-        let initctl_metadata =
-            fs::metadata(initctl_path).expect("Can't get metadata of /run/initctl");
-        assert!(initctl_metadata.file_type().is_fifo());
+        let fifo_path = test_config::get_filepath_config().fifo;
+        let fifo_metadata = fs::metadata(&fifo_path).expect("Can't get metadata of FIFO");
+        assert!(fifo_metadata.file_type().is_fifo());
 
-        let err = PathHash::new(initctl_path).expect_err("FIFO file didn't return an error");
+        let err = PathHash::new(&fifo_path).expect_err("FIFO file didn't return an error");
 
         match err {
             DirHashError::InvalidFileType(filetype, path) => match filetype {
                 InvalidFileTypeKind::FIFO => {
-                    assert_eq!(path, initctl_path)
+                    assert_eq!(path, fifo_path)
                 }
                 _ => panic!("Wrong InvalidFileType enum variant"),
             },
@@ -468,7 +468,7 @@ mod tests {
 
         // symlink to FIFO
         let symlink_path = dir.path().join("symlink");
-        unix::fs::symlink(initctl_path, &symlink_path).expect("Error while creating symlink");
+        unix::fs::symlink(fifo_path, &symlink_path).expect("Error while creating symlink");
 
         let err = PathHash::new(&symlink_path).expect_err("Symlink to FIFO didn't return an error");
 
@@ -493,19 +493,16 @@ mod tests {
         //     .tempdir()
         //     .expect("Can't create tempdir");
 
-        // Is this a good file? Do all Linux distros have this?
-        let systemd_private_path = Path::new("/run/systemd/private");
-        let systemd_private_metadata =
-            fs::metadata(systemd_private_path).expect("Can't get metadata of /run/systemd/private");
-        assert!(systemd_private_metadata.file_type().is_socket());
+        let socket_path = test_config::get_filepath_config().socket;
+        let socket_metadata = fs::metadata(&socket_path).expect("Can't get metadata of socket");
+        assert!(socket_metadata.file_type().is_socket());
 
-        let err =
-            PathHash::new(systemd_private_path).expect_err("Socket file didn't return an error");
+        let err = PathHash::new(&socket_path).expect_err("Socket file didn't return an error");
 
         match err {
             DirHashError::InvalidFileType(filetype, path) => match filetype {
                 InvalidFileTypeKind::Socket => {
-                    assert_eq!(path, systemd_private_path)
+                    assert_eq!(path, socket_path)
                 }
                 _ => panic!("Wrong InvalidFileType enum variant"),
             },
@@ -514,8 +511,7 @@ mod tests {
 
         // symlink to socket
         let symlink_path = dir.path().join("symlink");
-        unix::fs::symlink(systemd_private_path, &symlink_path)
-            .expect("Error while creating symlink");
+        unix::fs::symlink(socket_path, &symlink_path).expect("Error while creating symlink");
 
         let err =
             PathHash::new(&symlink_path).expect_err("Symlink to socket didn't return an error");
