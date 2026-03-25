@@ -5,3 +5,7 @@ char_dev_path = "/dev/null"
 # fifo_path = "/run/initctl"
 fifo_path = "/run/systemd/inaccessible/fifo"
 socket_path = "/run/systemd/private"
+
+random_test_duration = 1
+random_test_min_file_count = 1
+random_test_max_file_count = 10

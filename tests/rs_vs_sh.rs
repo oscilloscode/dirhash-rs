@@ -7,7 +7,7 @@ use std::{
     os::unix::{self, fs::FileTypeExt},
     path::Path,
     process::Command,
-    time::{Duration, Instant},
+    time::Instant,
 };
 
 use dirhash_rs::dirhash::{DirHash, IgnoreReason};
@@ -522,23 +522,21 @@ fn ignoring_hidden_files() {
 
 #[test]
 fn comparing_rs_sh_with_random_data() {
-    const TEST_MAX_DURATION: Duration = Duration::from_secs(1);
-    const TEST_MIN_FILES: usize = 1;
-    const TEST_MAX_FILES: usize = 5;
-
     // Setup
     // ------
+    let min_file_count = test_config::get_random_test_config().min_file_count;
+    let max_file_count = test_config::get_random_test_config().max_file_count;
     let start = Instant::now();
 
-    while start.elapsed() < TEST_MAX_DURATION {
+    while start.elapsed() < test_config::get_random_test_config().duration {
         let dir = common::creating_tempdir(
             None,
-            rand::random_range(TEST_MIN_FILES..=TEST_MAX_FILES),
+            rand::random_range(min_file_count..=max_file_count),
             // specifically crafted to check if sorting with LC_ALL=C is working
             &["b,foo", "bc,pe", "bcd,ty"][..],
-            rand::random_range(TEST_MIN_FILES..=TEST_MAX_FILES),
+            rand::random_range(min_file_count..=max_file_count),
             &["x", "y"][..],
-            rand::random_range(TEST_MIN_FILES..=TEST_MAX_FILES),
+            rand::random_range(min_file_count..=max_file_count),
             true,
         );
 
