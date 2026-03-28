@@ -13,9 +13,9 @@ cargo nextest run --no-fail-fast # don't stop after first failed test
 ```
 
 ## Benchmarking
-Mocks for testing are normally included when during testing. Benchmarking doesn't enable the `test` and therefore the mocks are not available. To enable them, the feature `test-mocks` must be enabled:
+Mocks for testing are normally included during testing. Benchmarking doesn't enable the `test` and therefore the mocks are not available. To enable them, the feature `test-utils` must be enabled:
 ``` bash
-cargo bench --features test-mocks
+cargo bench --features test-utils
 ```
 
 ## Test Coverage

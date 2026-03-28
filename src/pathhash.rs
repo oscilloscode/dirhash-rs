@@ -545,7 +545,7 @@ mod tests {
     }
 }
 
-#[cfg(any(test, feature = "test-mocks"))]
+#[cfg(any(test, feature = "test-utils"))]
 pub mod pathhashspy {
     use super::*;
 

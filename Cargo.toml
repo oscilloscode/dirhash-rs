@@ -6,12 +6,12 @@ edition = "2021"
 [[bench]]
 name = "pathhashlist_benchmark"
 harness = false
-required-features = ["test-mocks"]
+required-features = ["test-utils"]
 
 [[bench]]
 name = "pathhashlist_divan"
 harness = false
-required-features = ["test-mocks"]
+required-features = ["test-utils"]
 
 [dependencies]
 walkdir = "2.5.0"
@@ -27,7 +27,7 @@ criterion = "0.5.1"
 tempfile = "3.14.0"
 
 [features]
-test-mocks = []
+test-utils = []
 
 [profile.profiling]
 inherits = "release"

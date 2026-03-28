@@ -1,0 +1,2 @@
+[alias]
+test-all = "nextest run --no-fail-fast --features test-utils"
