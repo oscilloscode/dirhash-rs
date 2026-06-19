@@ -1,8 +1,165 @@
-use std::{env, os::unix::fs::FileTypeExt};
+// Functionality:
+//
+// dh list: list all files
+// dh analyze: analyze file and create a fingerprint
+// dh verify: verify the fingerprint
+//
+
+use std::{
+    env::current_dir,
+    fmt::Write,
+    fs,
+    os::unix::fs::FileTypeExt,
+    path::{Path, PathBuf},
+};
+
+use clap::{Parser, Subcommand};
+use dirhash_rs::dirhash::DirHash;
+use pathdiff::diff_paths;
 use walkdir::WalkDir;
 
+#[derive(Debug, Parser)]
+#[command(name = "DirHash")]
+#[command(version = "0.1")]
+#[command(about = "Compute a fingerprint over all files in a directory recursively", long_about = None)]
+struct DirhashCli {
+    #[command(subcommand)]
+    command: Commands,
+
+    /// Follow symbolic links
+    #[arg(short = 'L', long = "follow", global = true)]
+    follow_symlinks: bool,
+
+    /// Include hidden files
+    #[arg(short = 'H', long = "hidden", global = true)]
+    include_hidden_files: bool,
+
+    /// Ignore invalid filetypes
+    #[arg(short = 'I', long = "ignore_invalid", global = true)]
+    ignore_invalid_filetypes: bool,
+
+    /// Run a shell-based implementation in parallel to double check the output
+    #[arg(short, long, global = true)]
+    paranoid: bool,
+
+    /// Use absolute paths (instead of relative)
+    #[arg(short, long, global = true)]
+    absolute: bool,
+}
+
+#[derive(Debug, Subcommand)]
+enum Commands {
+    /// List files
+    List {
+        /// Path to list files from (default: cwd)
+        path: Option<PathBuf>,
+        /// Display the type of the listed files
+        #[arg(short = 't', long = "test")]
+        display_type: bool,
+    },
+    /// Analyze the files recursively and create a fingerprint
+    Analyze {
+        /// Path to analyze (default: cwd)
+        path: Option<PathBuf>,
+        /// Path to fingerprint file
+        #[arg(short, long)]
+        fingerprint: Option<PathBuf>,
+    },
+    /// Verify the fingerprint of files recursively
+    Verify {
+        // TODO: remove!!!
+        /// Path to analyze
+        path: PathBuf,
+        /// Path to fingerprint file
+        fingerprint: PathBuf,
+    },
+}
+
+fn parse_user_path(cwd: &Path, user_path: Option<PathBuf>) -> PathBuf {
+    println!("path param: {:?}", &user_path);
+    let path = cwd.join(user_path.unwrap_or(PathBuf::from(".")));
+    println!("path before canonicalize: {:?}", &path);
+    let canon_path = path.canonicalize();
+    println!("canon path: {:?}", canon_path);
+
+    let canon_path = canon_path.expect("Supplied path doesn't exist");
+
+    if !canon_path.is_dir() {
+        panic!("Supplied path is not a directory");
+    }
+
+    canon_path
+}
+
 fn main() {
-    let path = env::current_dir().unwrap();
+    let cwd = current_dir().expect("Can't get current working directory");
+
+    let args = DirhashCli::parse();
+
+    println!("parsed args: {:?}", args);
+
+    match args.command {
+        Commands::List { path, display_type } => {
+            let path = parse_user_path(&cwd, path);
+            list_files(
+                path,
+                display_type,
+                args.follow_symlinks,
+                args.include_hidden_files,
+                args.ignore_invalid_filetypes,
+                args.paranoid,
+                args.absolute,
+            );
+        }
+        Commands::Analyze { path, fingerprint } => {
+            let path = parse_user_path(&cwd, path);
+            analyze_files(
+                path,
+                // args.fingerprint,
+                fingerprint,
+                args.follow_symlinks,
+                args.include_hidden_files,
+                args.ignore_invalid_filetypes,
+                args.paranoid,
+                args.absolute,
+            );
+        }
+        Commands::Verify { path, fingerprint } => {
+            let path = parse_user_path(&cwd, Some(path));
+            verify_files(
+                path,
+                fingerprint,
+                args.follow_symlinks,
+                args.include_hidden_files,
+                args.ignore_invalid_filetypes,
+                args.paranoid,
+                args.absolute,
+            );
+        }
+    }
+}
+
+fn list_files(
+    path: PathBuf,
+    display_type: bool,
+    follow_symlinks: bool,
+    include_hidden_files: bool,
+    ignore_invalid_filetypes: bool,
+    paranoid: bool,
+    absolute: bool,
+) {
+    println!("Listing files:");
+    println!("Path: {:?}", path);
+    println!("Display file types: {:?}", display_type);
+    println!("Follow symlinks: {:?}", follow_symlinks);
+    println!("Include hidden files: {:?}", include_hidden_files);
+    println!("Ignore invalid filetypes: {:?}", ignore_invalid_filetypes);
+    println!("Paranoid mode: {:?}", paranoid);
+    println!("Absolute paths: {:?}", absolute);
+
+    // TODO replace with code from dirhash. if there is a bug in the file discovery which leads to
+    // more/less files being included, this wouldn't show it.
+
     for entry in WalkDir::new(path).follow_links(false) {
         let entry = entry.unwrap();
         println!(
@@ -15,79 +172,137 @@ fn main() {
             entry.path().display()
         );
     }
-
-    // for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
-    //     let entry = entry?;
-    //     println!("{:?}", entry);
-    //     // TODO:
-    //     // Or should I just filter for files? How are symlinks affected by this?
-    //     if entry.file_type().is_dir() {
-    //         continue;
-    //     }
-
-    //     let pathhash = PathHash::new(entry.path())?;
-    //     files.push(pathhash);
-    // }
 }
 
-// use dirhash_rs::pathhash::pathhashspy::PathHashSpy;
-// use dirhash_rs::pathhash::PathHashProvider;
-// use dirhash_rs::pathhashlist::PathHashList;
-// use std::io::Write as _;
-// use std::path::Path;
+fn calculate_fingerprint(
+    path: PathBuf,
+    follow_symlinks: bool,
+    include_hidden_files: bool,
+    ignore_invalid_filetypes: bool,
+    paranoid: bool,
+    absolute: bool,
+) -> String {
+    let mut fingerprint = String::new();
 
-// fn create_large_spy_vec(count: usize) -> Vec<PathHashSpy> {
-//     let mut spies = Vec::with_capacity(count);
+    let mut dh = DirHash::new()
+        .with_files_from_dir(
+            &path,
+            !absolute,
+            follow_symlinks,
+            include_hidden_files,
+            ignore_invalid_filetypes,
+        )
+        .expect("Can't create DirHash");
 
-//     for i in 0..count {
-//         let path_num = format!("/{}", i);
-//         let hash = format!("{:064?}", i);
-//         let mut hash_bytes = [0u8; 32];
-//         hex::decode_to_slice(hash, &mut hash_bytes).unwrap();
+    dh.compute_hash().expect("Error while computing hash");
 
-//         let spy = PathHashSpy::new(Path::new(&path_num).to_owned(), Some(hash_bytes), None);
-//         spies.push(spy);
-//     }
+    write!(
+        &mut fingerprint,
+        "{}\n{}\n",
+        dh.hashtable().expect("Can't get hashtable").to_string(),
+        hex::encode(dh.hash().expect("Can't get hash string"))
+    )
+    .expect("Can't write fingerprint to string buffer");
 
-//     spies
-// }
+    if !dh.ignored().is_empty() {
+        writeln!(&mut fingerprint, "\nIgnored files:")
+            .expect("Can't write ignored files header to string buffer");
 
-// pub fn with_update() {
-//     // let mut group = c.benchmark_group("compute_hash");
+        for (ignored_path, reason) in dh.ignored() {
+            let relative_path = (!absolute).then(|| {
+                PathBuf::from(".").join(
+                    diff_paths(ignored_path, &path)
+                        .expect("Can't create relative path for ignored file"),
+                )
+            });
 
-//     let spies = create_large_spy_vec(1000000);
+            let ignored_path = relative_path.as_deref().unwrap_or(ignored_path.as_path());
 
-//     // Use this function to create a file containing all the hashes and paths of the spies. You can
-//     // then compute the overall hash with "sha256sum spies.txt" and place the expected overall hash
-//     // in the `assert_eq!()` down below.
-//     // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
+            write!(
+                &mut fingerprint,
+                "{}: {:?}\n",
+                ignored_path.display(),
+                reason
+            )
+            .expect("Can't write ignored files to string buffer");
+        }
+    }
 
-//     let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+    fingerprint
+}
 
-//     pathhashlist.compute_hash_with_update();
+fn analyze_files(
+    path: PathBuf,
+    fingerprint_path: Option<PathBuf>,
+    follow_symlinks: bool,
+    include_hidden_files: bool,
+    ignore_invalid_filetypes: bool,
+    paranoid: bool,
+    absolute: bool,
+) {
+    println!("Analyzing files:");
+    println!("Path: {:?}", path);
+    println!("Fingerprint path: {:?}", fingerprint_path);
+    println!("Follow symlinks: {:?}", follow_symlinks);
+    println!("Include hidden files: {:?}", include_hidden_files);
+    println!("Ignore invalid filetypes: {:?}", ignore_invalid_filetypes);
+    println!("Paranoid mode: {:?}", paranoid);
+    println!("Absolute paths: {:?}", absolute);
 
-//     // assert_eq!(pathhashlist.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
-// }
+    let fingerprint = calculate_fingerprint(
+        path,
+        follow_symlinks,
+        include_hidden_files,
+        ignore_invalid_filetypes,
+        paranoid,
+        absolute,
+    );
 
-// pub fn with_string() {
-//     // let mut group = c.benchmark_group("compute_hash");
+    print!("{}", fingerprint);
 
-//     let spies = create_large_spy_vec(1000000);
+    if let Some(path) = fingerprint_path.as_ref() {
+        fs::write(path, fingerprint).expect("Can't write to fingerprint file");
+    }
+}
 
-//     // Use this function to create a file containing all the hashes and paths of the spies. You can
-//     // then compute the overall hash with "sha256sum spies.txt" and place the expected overall hash
-//     // in the `assert_eq!()` down below.
-//     // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
+fn verify_files(
+    path: PathBuf,
+    fingerprint_path: PathBuf,
+    follow_symlinks: bool,
+    include_hidden_files: bool,
+    ignore_invalid_filetypes: bool,
+    paranoid: bool,
+    absolute: bool,
+) {
+    println!("Verifying files:");
+    println!("Path: {:?}", path);
+    println!("Fingerprint path: {:?}", fingerprint_path);
+    println!("Paranoid mode: {:?}", paranoid);
 
-//     let mut pathhashlist = PathHashList::new(spies).expect("Can't create PathHashList");
+    let filetype = fs::metadata(&fingerprint_path)
+        .expect("Can't open fingerprint file")
+        .file_type();
 
-//     pathhashlist.compute_hash_with_string();
+    if !filetype.is_file() {
+        panic!("Fingerprint path is not a file!");
+    }
 
-//     // assert_eq!(pathhashlist.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
-// }
+    let fingerprint = calculate_fingerprint(
+        path,
+        follow_symlinks,
+        include_hidden_files,
+        ignore_invalid_filetypes,
+        paranoid,
+        absolute,
+    );
 
-// fn main() {
-//     // Run registered benchmarks.
-//     with_update();
-//     with_string();
-// }
+    print!("Calculated fingerprint:\n{}", fingerprint);
+
+    let file_contents = fs::read_to_string(fingerprint_path).expect("Can't read fingerprint file");
+
+    print!("Fingerprint file:\n{}", file_contents);
+
+    if fingerprint != file_contents {
+        panic!("Calculated fingerprint doesn't match fingerprint file!");
+    }
+}
