@@ -13,18 +13,16 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use clap::{Parser, Subcommand};
+use clap::{Args, Parser, Subcommand};
 use dirhash_rs::dirhash::DirHash;
 use pathdiff::diff_paths;
 use walkdir::WalkDir;
 
-#[derive(Debug, Parser)]
-#[command(name = "DirHash")]
-#[command(version = "0.1")]
-#[command(about = "Compute a fingerprint over all files in a directory recursively", long_about = None)]
-struct DirhashCli {
-    #[command(subcommand)]
-    command: Commands,
+#[derive(Debug, Args, Clone)]
+struct WalkOptions {
+    /// Use absolute paths (instead of relative)
+    #[arg(short, long, global = true)]
+    absolute: bool,
 
     /// Follow symbolic links
     #[arg(short = 'L', long = "follow", global = true)]
@@ -37,14 +35,22 @@ struct DirhashCli {
     /// Ignore invalid filetypes
     #[arg(short = 'I', long = "ignore_invalid", global = true)]
     ignore_invalid_filetypes: bool,
+}
+
+#[derive(Debug, Parser)]
+#[command(name = "DirHash")]
+#[command(version = "0.1")]
+#[command(about = "Compute a fingerprint over all files in a directory recursively", long_about = None)]
+struct DirhashCli {
+    #[command(subcommand)]
+    command: Commands,
+
+    #[command(flatten)]
+    walk: WalkOptions,
 
     /// Run a shell-based implementation in parallel to double check the output
     #[arg(short, long, global = true)]
     paranoid: bool,
-
-    /// Use absolute paths (instead of relative)
-    #[arg(short, long, global = true)]
-    absolute: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -101,61 +107,31 @@ fn main() {
     match args.command {
         Commands::List { path, display_type } => {
             let path = parse_user_path(&cwd, path);
-            list_files(
-                path,
-                display_type,
-                args.follow_symlinks,
-                args.include_hidden_files,
-                args.ignore_invalid_filetypes,
-                args.paranoid,
-                args.absolute,
-            );
+            list_files(path, display_type, args.walk, args.paranoid);
         }
         Commands::Analyze { path, fingerprint } => {
             let path = parse_user_path(&cwd, path);
-            analyze_files(
-                path,
-                // args.fingerprint,
-                fingerprint,
-                args.follow_symlinks,
-                args.include_hidden_files,
-                args.ignore_invalid_filetypes,
-                args.paranoid,
-                args.absolute,
-            );
+            analyze_files(path, fingerprint, args.walk, args.paranoid);
         }
         Commands::Verify { path, fingerprint } => {
             let path = parse_user_path(&cwd, Some(path));
-            verify_files(
-                path,
-                fingerprint,
-                args.follow_symlinks,
-                args.include_hidden_files,
-                args.ignore_invalid_filetypes,
-                args.paranoid,
-                args.absolute,
-            );
+            verify_files(path, fingerprint, args.walk, args.paranoid);
         }
     }
 }
 
-fn list_files(
-    path: PathBuf,
-    display_type: bool,
-    follow_symlinks: bool,
-    include_hidden_files: bool,
-    ignore_invalid_filetypes: bool,
-    paranoid: bool,
-    absolute: bool,
-) {
+fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bool) {
     println!("Listing files:");
     println!("Path: {:?}", path);
     println!("Display file types: {:?}", display_type);
-    println!("Follow symlinks: {:?}", follow_symlinks);
-    println!("Include hidden files: {:?}", include_hidden_files);
-    println!("Ignore invalid filetypes: {:?}", ignore_invalid_filetypes);
+    println!("Absolute paths: {:?}", walk.absolute);
+    println!("Follow symlinks: {:?}", walk.follow_symlinks);
+    println!("Include hidden files: {:?}", walk.include_hidden_files);
+    println!(
+        "Ignore invalid filetypes: {:?}",
+        walk.ignore_invalid_filetypes
+    );
     println!("Paranoid mode: {:?}", paranoid);
-    println!("Absolute paths: {:?}", absolute);
 
     // TODO replace with code from dirhash. if there is a bug in the file discovery which leads to
     // more/less files being included, this wouldn't show it.
@@ -174,23 +150,16 @@ fn list_files(
     }
 }
 
-fn calculate_fingerprint(
-    path: PathBuf,
-    follow_symlinks: bool,
-    include_hidden_files: bool,
-    ignore_invalid_filetypes: bool,
-    paranoid: bool,
-    absolute: bool,
-) -> String {
+fn calculate_fingerprint(path: PathBuf, walk: WalkOptions, paranoid: bool) -> String {
     let mut fingerprint = String::new();
 
     let mut dh = DirHash::new()
         .with_files_from_dir(
             &path,
-            !absolute,
-            follow_symlinks,
-            include_hidden_files,
-            ignore_invalid_filetypes,
+            !walk.absolute,
+            walk.follow_symlinks,
+            walk.include_hidden_files,
+            walk.ignore_invalid_filetypes,
         )
         .expect("Can't create DirHash");
 
@@ -209,7 +178,7 @@ fn calculate_fingerprint(
             .expect("Can't write ignored files header to string buffer");
 
         for (ignored_path, reason) in dh.ignored() {
-            let relative_path = (!absolute).then(|| {
+            let relative_path = (!walk.absolute).then(|| {
                 PathBuf::from(".").join(
                     diff_paths(ignored_path, &path)
                         .expect("Can't create relative path for ignored file"),
@@ -234,29 +203,22 @@ fn calculate_fingerprint(
 fn analyze_files(
     path: PathBuf,
     fingerprint_path: Option<PathBuf>,
-    follow_symlinks: bool,
-    include_hidden_files: bool,
-    ignore_invalid_filetypes: bool,
+    walk: WalkOptions,
     paranoid: bool,
-    absolute: bool,
 ) {
     println!("Analyzing files:");
     println!("Path: {:?}", path);
     println!("Fingerprint path: {:?}", fingerprint_path);
-    println!("Follow symlinks: {:?}", follow_symlinks);
-    println!("Include hidden files: {:?}", include_hidden_files);
-    println!("Ignore invalid filetypes: {:?}", ignore_invalid_filetypes);
-    println!("Paranoid mode: {:?}", paranoid);
-    println!("Absolute paths: {:?}", absolute);
-
-    let fingerprint = calculate_fingerprint(
-        path,
-        follow_symlinks,
-        include_hidden_files,
-        ignore_invalid_filetypes,
-        paranoid,
-        absolute,
+    println!("Absolute paths: {:?}", walk.absolute);
+    println!("Follow symlinks: {:?}", walk.follow_symlinks);
+    println!("Include hidden files: {:?}", walk.include_hidden_files);
+    println!(
+        "Ignore invalid filetypes: {:?}",
+        walk.ignore_invalid_filetypes
     );
+    println!("Paranoid mode: {:?}", paranoid);
+
+    let fingerprint = calculate_fingerprint(path, walk, paranoid);
 
     print!("{}", fingerprint);
 
@@ -265,18 +227,17 @@ fn analyze_files(
     }
 }
 
-fn verify_files(
-    path: PathBuf,
-    fingerprint_path: PathBuf,
-    follow_symlinks: bool,
-    include_hidden_files: bool,
-    ignore_invalid_filetypes: bool,
-    paranoid: bool,
-    absolute: bool,
-) {
+fn verify_files(path: PathBuf, fingerprint_path: PathBuf, walk: WalkOptions, paranoid: bool) {
     println!("Verifying files:");
     println!("Path: {:?}", path);
     println!("Fingerprint path: {:?}", fingerprint_path);
+    println!("Absolute paths: {:?}", walk.absolute);
+    println!("Follow symlinks: {:?}", walk.follow_symlinks);
+    println!("Include hidden files: {:?}", walk.include_hidden_files);
+    println!(
+        "Ignore invalid filetypes: {:?}",
+        walk.ignore_invalid_filetypes
+    );
     println!("Paranoid mode: {:?}", paranoid);
 
     let filetype = fs::metadata(&fingerprint_path)
@@ -287,14 +248,7 @@ fn verify_files(
         panic!("Fingerprint path is not a file!");
     }
 
-    let fingerprint = calculate_fingerprint(
-        path,
-        follow_symlinks,
-        include_hidden_files,
-        ignore_invalid_filetypes,
-        paranoid,
-        absolute,
-    );
+    let fingerprint = calculate_fingerprint(path, walk, paranoid);
 
     print!("Calculated fingerprint:\n{}", fingerprint);
 
