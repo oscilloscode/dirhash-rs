@@ -16,9 +16,10 @@ use std::{
 use clap::{Args, Parser, Subcommand};
 use dirhash_rs::dirhash::DirHash;
 use pathdiff::diff_paths;
+use serde::Serialize;
 use walkdir::WalkDir;
 
-#[derive(Debug, Args, Clone)]
+#[derive(Debug, Args, Clone, Serialize)]
 struct WalkOptions {
     /// Use absolute paths (instead of relative)
     #[arg(short, long, global = true)]
@@ -152,6 +153,18 @@ fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bo
 
 fn calculate_fingerprint(path: PathBuf, walk: WalkOptions, paranoid: bool) -> String {
     let mut fingerprint = String::new();
+
+    writeln!(&mut fingerprint, "# path={}", path.display())
+        .expect("Can't write path to string buffer");
+
+    let walk_value = serde_json::to_value(&walk).expect("Can't serialize to value");
+
+    for (key, value) in walk_value.as_object().expect("Can't get object") {
+        writeln!(&mut fingerprint, "# {key}={value}")
+            .expect("Can't write walk options to string buffer")
+    }
+
+    writeln!(&mut fingerprint, "").expect("Can't write newline to string buffer");
 
     let mut dh = DirHash::new()
         .with_files_from_dir(
