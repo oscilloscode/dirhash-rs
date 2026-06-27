@@ -8,7 +8,8 @@
 use std::{
     env::current_dir,
     fmt::Write,
-    fs,
+    fs::{self, File},
+    io::{BufRead, BufReader},
     os::unix::fs::FileTypeExt,
     path::{Path, PathBuf},
 };
@@ -16,10 +17,10 @@ use std::{
 use clap::{Args, Parser, Subcommand};
 use dirhash_rs::dirhash::DirHash;
 use pathdiff::diff_paths;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use walkdir::WalkDir;
 
-#[derive(Debug, Args, Clone, Serialize)]
+#[derive(Debug, Args, Clone, Serialize, Deserialize)]
 struct WalkOptions {
     /// Use absolute paths (instead of relative)
     #[arg(short, long, global = true)]
@@ -36,6 +37,14 @@ struct WalkOptions {
     /// Ignore invalid filetypes
     #[arg(short = 'I', long = "ignore_invalid", global = true)]
     ignore_invalid_filetypes: bool,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+struct FingerprintMetadata {
+    version: u8,
+    path: PathBuf,
+    #[serde(flatten)]
+    walk: WalkOptions,
 }
 
 #[derive(Debug, Parser)]
@@ -74,9 +83,6 @@ enum Commands {
     },
     /// Verify the fingerprint of files recursively
     Verify {
-        // TODO: remove!!!
-        /// Path to analyze
-        path: PathBuf,
         /// Path to fingerprint file
         fingerprint: PathBuf,
     },
@@ -114,9 +120,8 @@ fn main() {
             let path = parse_user_path(&cwd, path);
             analyze_files(path, fingerprint, args.walk, args.paranoid);
         }
-        Commands::Verify { path, fingerprint } => {
-            let path = parse_user_path(&cwd, Some(path));
-            verify_files(path, fingerprint, args.walk, args.paranoid);
+        Commands::Verify { fingerprint } => {
+            verify_files(fingerprint, args.paranoid);
         }
     }
 }
@@ -151,28 +156,29 @@ fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bo
     }
 }
 
-fn calculate_fingerprint(path: PathBuf, walk: WalkOptions, paranoid: bool) -> String {
+fn calculate_fingerprint(meta: FingerprintMetadata, paranoid: bool) -> String {
     let mut fingerprint = String::new();
 
-    writeln!(&mut fingerprint, "# path={}", path.display())
-        .expect("Can't write path to string buffer");
+    let meta_serialized = serde_json::to_string_pretty(&meta).expect("Can't serialize metadata");
 
-    let walk_value = serde_json::to_value(&walk).expect("Can't serialize to value");
+    let mut commented_meta = String::new();
 
-    for (key, value) in walk_value.as_object().expect("Can't get object") {
-        writeln!(&mut fingerprint, "# {key}={value}")
-            .expect("Can't write walk options to string buffer")
+    for line in meta_serialized.lines() {
+        commented_meta.push_str("# ");
+        commented_meta.push_str(line);
+        commented_meta.push('\n');
     }
 
-    writeln!(&mut fingerprint, "").expect("Can't write newline to string buffer");
+    writeln!(&mut fingerprint, "{commented_meta}")
+        .expect("Can't write commented metadata to string buffer");
 
     let mut dh = DirHash::new()
         .with_files_from_dir(
-            &path,
-            !walk.absolute,
-            walk.follow_symlinks,
-            walk.include_hidden_files,
-            walk.ignore_invalid_filetypes,
+            &meta.path,
+            !meta.walk.absolute,
+            meta.walk.follow_symlinks,
+            meta.walk.include_hidden_files,
+            meta.walk.ignore_invalid_filetypes,
         )
         .expect("Can't create DirHash");
 
@@ -191,9 +197,9 @@ fn calculate_fingerprint(path: PathBuf, walk: WalkOptions, paranoid: bool) -> St
             .expect("Can't write ignored files header to string buffer");
 
         for (ignored_path, reason) in dh.ignored() {
-            let relative_path = (!walk.absolute).then(|| {
+            let relative_path = (!meta.walk.absolute).then(|| {
                 PathBuf::from(".").join(
-                    diff_paths(ignored_path, &path)
+                    diff_paths(ignored_path, &meta.path)
                         .expect("Can't create relative path for ignored file"),
                 )
             });
@@ -231,7 +237,13 @@ fn analyze_files(
     );
     println!("Paranoid mode: {:?}", paranoid);
 
-    let fingerprint = calculate_fingerprint(path, walk, paranoid);
+    let meta = FingerprintMetadata {
+        version: 1,
+        path: path.clone(),
+        walk: walk.clone(),
+    };
+
+    let fingerprint = calculate_fingerprint(meta, paranoid);
 
     print!("{}", fingerprint);
 
@@ -240,28 +252,48 @@ fn analyze_files(
     }
 }
 
-fn verify_files(path: PathBuf, fingerprint_path: PathBuf, walk: WalkOptions, paranoid: bool) {
+fn verify_files(fingerprint_path: PathBuf, paranoid: bool) {
     println!("Verifying files:");
-    println!("Path: {:?}", path);
     println!("Fingerprint path: {:?}", fingerprint_path);
-    println!("Absolute paths: {:?}", walk.absolute);
-    println!("Follow symlinks: {:?}", walk.follow_symlinks);
-    println!("Include hidden files: {:?}", walk.include_hidden_files);
-    println!(
-        "Ignore invalid filetypes: {:?}",
-        walk.ignore_invalid_filetypes
-    );
     println!("Paranoid mode: {:?}", paranoid);
 
     let filetype = fs::metadata(&fingerprint_path)
-        .expect("Can't open fingerprint file")
+        .expect("Can't read metadata of fingerprint file")
         .file_type();
 
     if !filetype.is_file() {
         panic!("Fingerprint path is not a file!");
     }
 
-    let fingerprint = calculate_fingerprint(path, walk, paranoid);
+    let f = File::open(&fingerprint_path).expect("Can't open fingerprint file");
+    let reader = BufReader::new(f);
+
+    let meta_serialized = reader
+        .lines()
+        .map(|line| line.expect("Can't read line"))
+        .take_while(|line| line.starts_with("# "))
+        // .map(|line| line.strip_prefix("# ").unwrap())
+        .map(|line| line.strip_prefix("# ").unwrap().to_owned())
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    // let meta = reader
+    //     .lines()
+    //     .map(|line| line.expect("Can't read line").strip_prefix("# "))
+    //     .take_while(Option::is_some)
+    //     .flat_map(Option::unwrap)
+    //     // .map(|line| line.strip_prefix("# ").unwrap())
+    //     // .map(|line| line.strip_prefix("# ").unwrap().to_owned())
+    //     .collect::<Vec<_>>()
+    //     .join("\n");
+
+    println!("meta_serialized = {meta_serialized}");
+
+    let meta: FingerprintMetadata = serde_json::from_str(&meta_serialized).unwrap();
+
+    println!("meta = {meta:?}");
+
+    let fingerprint = calculate_fingerprint(meta, paranoid);
 
     print!("Calculated fingerprint:\n{}", fingerprint);
 
