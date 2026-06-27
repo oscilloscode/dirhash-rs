@@ -23,19 +23,19 @@ use walkdir::WalkDir;
 #[derive(Debug, Args, Clone, Serialize, Deserialize)]
 struct WalkOptions {
     /// Use absolute paths (instead of relative)
-    #[arg(short, long, global = true)]
+    #[arg(short, long)]
     absolute: bool,
 
     /// Follow symbolic links
-    #[arg(short = 'L', long = "follow", global = true)]
+    #[arg(short = 'L', long = "follow")]
     follow_symlinks: bool,
 
     /// Include hidden files
-    #[arg(short = 'H', long = "hidden", global = true)]
+    #[arg(short = 'H', long = "hidden")]
     include_hidden_files: bool,
 
     /// Ignore invalid filetypes
-    #[arg(short = 'I', long = "ignore_invalid", global = true)]
+    #[arg(short = 'I', long = "ignore_invalid")]
     ignore_invalid_filetypes: bool,
 }
 
@@ -55,9 +55,7 @@ struct DirhashCli {
     #[command(subcommand)]
     command: Commands,
 
-    #[command(flatten)]
-    walk: WalkOptions,
-
+    // TODO: this doesn't do anything yet!
     /// Run a shell-based implementation in parallel to double check the output
     #[arg(short, long, global = true)]
     paranoid: bool,
@@ -69,6 +67,8 @@ enum Commands {
     List {
         /// Path to list files from (default: cwd)
         path: Option<PathBuf>,
+        #[command(flatten)]
+        walk: WalkOptions,
         /// Display the type of the listed files
         #[arg(short = 't', long = "test")]
         display_type: bool,
@@ -77,6 +77,8 @@ enum Commands {
     Analyze {
         /// Path to analyze (default: cwd)
         path: Option<PathBuf>,
+        #[command(flatten)]
+        walk: WalkOptions,
         /// Path to fingerprint file
         #[arg(short, long)]
         fingerprint: Option<PathBuf>,
@@ -112,13 +114,21 @@ fn main() {
     println!("parsed args: {:?}", args);
 
     match args.command {
-        Commands::List { path, display_type } => {
+        Commands::List {
+            path,
+            walk,
+            display_type,
+        } => {
             let path = parse_user_path(&cwd, path);
-            list_files(path, display_type, args.walk, args.paranoid);
+            list_files(path, display_type, walk, args.paranoid);
         }
-        Commands::Analyze { path, fingerprint } => {
+        Commands::Analyze {
+            path,
+            walk,
+            fingerprint,
+        } => {
             let path = parse_user_path(&cwd, path);
-            analyze_files(path, fingerprint, args.walk, args.paranoid);
+            analyze_files(path, fingerprint, walk, args.paranoid);
         }
         Commands::Verify { fingerprint } => {
             verify_files(fingerprint, args.paranoid);
