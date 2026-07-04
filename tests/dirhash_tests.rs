@@ -20,6 +20,7 @@ mod common;
 
 #[test]
 fn with_files_from_dir_dont_follow_symlinks() {
+    common::init_tracing();
     let dir = common::create_tempdir_with_links();
 
     let mut dh = DirHash::new()
@@ -72,6 +73,7 @@ fn with_files_from_dir_dont_follow_symlinks() {
 
 #[test]
 fn with_files_from_dir_follow_symlinks() {
+    common::init_tracing();
     let dir = common::create_tempdir_with_links();
 
     let mut dh = DirHash::new()
@@ -117,6 +119,7 @@ fn with_files_from_dir_follow_symlinks() {
 
 #[test]
 fn with_files_from_dir_include_hidden_files() {
+    common::init_tracing();
     let dir = tempdir().expect("Can't create tempdir");
     // let dir = tempfile::Builder::new()
     //     .keep(true)
@@ -155,6 +158,7 @@ fn with_files_from_dir_include_hidden_files() {
 
 #[test]
 fn with_files_from_dir_ignore_hidden_files() {
+    common::init_tracing();
     let dir = tempdir().expect("Can't create tempdir");
     // let dir = tempfile::Builder::new()
     //     .keep(true)
@@ -191,6 +195,7 @@ fn with_files_from_dir_ignore_hidden_files() {
 
 #[test]
 fn with_file_from_dir_no_root_empty_files() {
+    common::init_tracing();
     let dir = common::creating_tempdir(
         Some(String::from(".tmp_with_file_from_dir_no_root_empty_files")),
         2,
@@ -245,6 +250,7 @@ fn with_file_from_dir_no_root_empty_files() {
 
 #[test]
 fn with_files_from_dir_with_root_empty_files() {
+    common::init_tracing();
     let dir = common::creating_tempdir(None, 2, &["a", "b"][..], 1, &["x", "y"][..], 2, false);
 
     let mut dh = DirHash::new()
@@ -291,6 +297,7 @@ fn with_files_from_dir_with_root_empty_files() {
 
 #[test]
 fn with_file_from_dir_no_root() {
+    common::init_tracing();
     let dir = common::creating_tempdir(
         Some(String::from(".tmp_with_file_from_dir_no_root")),
         3,
@@ -382,6 +389,7 @@ fn with_file_from_dir_no_root() {
 
 #[test]
 fn with_files_from_dir_with_root() {
+    common::init_tracing();
     let dir = common::creating_tempdir(None, 3, &["c", "d"][..], 2, &["x", "y", "z"][..], 1, false);
 
     // Add data to files
@@ -465,6 +473,7 @@ fn with_files_from_dir_with_root() {
 
 #[test]
 fn with_files_from_dir_invalid_filetypes() {
+    common::init_tracing();
     let dir = common::creating_tempdir(None, 3, &["d", "e"][..], 2, &["r", "s", "t"][..], 3, false);
 
     // Adding links to invalid filetypes, as this is significantly easier than creating them all.
@@ -566,6 +575,7 @@ fn with_files_from_dir_invalid_filetypes() {
 
 #[test]
 fn with_files_from_dir_invalid_filetypes_ignore() {
+    common::init_tracing();
     let dir = common::creating_tempdir(None, 3, &["d", "e"][..], 2, &["r", "s", "t"][..], 3, false);
 
     // Adding links to invalid filetypes, as this is significantly easier than creating them all.

@@ -18,6 +18,7 @@ use clap::{Args, Parser, Subcommand};
 use dirhash_rs::dirhash::DirHash;
 use pathdiff::diff_paths;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, info};
 use walkdir::WalkDir;
 
 #[derive(Debug, Args, Clone, Serialize, Deserialize)]
@@ -91,11 +92,11 @@ enum Commands {
 }
 
 fn parse_user_path(cwd: &Path, user_path: Option<PathBuf>) -> PathBuf {
-    println!("path param: {:?}", &user_path);
+    info!("path param: {:?}", &user_path);
     let path = cwd.join(user_path.unwrap_or(PathBuf::from(".")));
-    println!("path before canonicalize: {:?}", &path);
+    debug!("path before canonicalize: {:?}", &path);
     let canon_path = path.canonicalize();
-    println!("canon path: {:?}", canon_path);
+    info!("canon path: {:?}", canon_path);
 
     let canon_path = canon_path.expect("Supplied path doesn't exist");
 
@@ -107,11 +108,17 @@ fn parse_user_path(cwd: &Path, user_path: Option<PathBuf>) -> PathBuf {
 }
 
 fn main() {
+    // let _ = tracing_subscriber::fmt()
+    //     .with_max_level(tracing::Level::DEBUG)
+    //     .with_file(true)
+    //     .with_target(false)
+    //     .init();
+
     let cwd = current_dir().expect("Can't get current working directory");
 
     let args = DirhashCli::parse();
 
-    println!("parsed args: {:?}", args);
+    debug!("parsed args: {:?}", args);
 
     match args.command {
         Commands::List {
@@ -137,24 +144,24 @@ fn main() {
 }
 
 fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bool) {
-    println!("Listing files:");
-    println!("Path: {:?}", path);
-    println!("Display file types: {:?}", display_type);
-    println!("Absolute paths: {:?}", walk.absolute);
-    println!("Follow symlinks: {:?}", walk.follow_symlinks);
-    println!("Include hidden files: {:?}", walk.include_hidden_files);
-    println!(
+    info!("Listing files:");
+    debug!("Path: {:?}", path);
+    debug!("Display file types: {:?}", display_type);
+    debug!("Absolute paths: {:?}", walk.absolute);
+    debug!("Follow symlinks: {:?}", walk.follow_symlinks);
+    debug!("Include hidden files: {:?}", walk.include_hidden_files);
+    debug!(
         "Ignore invalid filetypes: {:?}",
         walk.ignore_invalid_filetypes
     );
-    println!("Paranoid mode: {:?}", paranoid);
+    debug!("Paranoid mode: {:?}", paranoid);
 
     // TODO replace with code from dirhash. if there is a bug in the file discovery which leads to
     // more/less files being included, this wouldn't show it.
 
     for entry in WalkDir::new(path).follow_links(false) {
         let entry = entry.unwrap();
-        println!(
+        info!(
             "type: {:?} block: {} char: {} fifo: {} socket: {} path: {}",
             entry.file_type(),
             entry.file_type().is_block_device(),
@@ -235,17 +242,17 @@ fn analyze_files(
     walk: WalkOptions,
     paranoid: bool,
 ) {
-    println!("Analyzing files:");
-    println!("Path: {:?}", path);
-    println!("Fingerprint path: {:?}", fingerprint_path);
-    println!("Absolute paths: {:?}", walk.absolute);
-    println!("Follow symlinks: {:?}", walk.follow_symlinks);
-    println!("Include hidden files: {:?}", walk.include_hidden_files);
-    println!(
+    info!("Analyzing files:");
+    debug!("Path: {:?}", path);
+    debug!("Fingerprint path: {:?}", fingerprint_path);
+    debug!("Absolute paths: {:?}", walk.absolute);
+    debug!("Follow symlinks: {:?}", walk.follow_symlinks);
+    debug!("Include hidden files: {:?}", walk.include_hidden_files);
+    debug!(
         "Ignore invalid filetypes: {:?}",
         walk.ignore_invalid_filetypes
     );
-    println!("Paranoid mode: {:?}", paranoid);
+    debug!("Paranoid mode: {:?}", paranoid);
 
     let meta = FingerprintMetadata {
         version: 1,
@@ -263,9 +270,9 @@ fn analyze_files(
 }
 
 fn verify_files(fingerprint_path: PathBuf, paranoid: bool) {
-    println!("Verifying files:");
-    println!("Fingerprint path: {:?}", fingerprint_path);
-    println!("Paranoid mode: {:?}", paranoid);
+    info!("Verifying files:");
+    debug!("Fingerprint path: {:?}", fingerprint_path);
+    debug!("Paranoid mode: {:?}", paranoid);
 
     let filetype = fs::metadata(&fingerprint_path)
         .expect("Can't read metadata of fingerprint file")
@@ -297,11 +304,11 @@ fn verify_files(fingerprint_path: PathBuf, paranoid: bool) {
     //     .collect::<Vec<_>>()
     //     .join("\n");
 
-    println!("meta_serialized = {meta_serialized}");
+    debug!("meta_serialized = {meta_serialized}");
 
     let meta: FingerprintMetadata = serde_json::from_str(&meta_serialized).unwrap();
 
-    println!("meta = {meta:?}");
+    debug!("meta = {meta:?}");
 
     let fingerprint = calculate_fingerprint(meta, paranoid);
 

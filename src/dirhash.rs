@@ -4,6 +4,7 @@ use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 
 use sha2::{Digest, Sha256};
+use tracing::{debug, error, info, warn};
 use walkdir::WalkDir;
 
 use crate::error::{DirHashError, InvalidFileTypeKind, Result};
@@ -118,7 +119,7 @@ impl DirHash<PathHash> {
 
         for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
             let entry = entry?;
-            println!("{:?}", entry);
+            info!("{:?}", entry);
 
             // From the WalkDir docs:
             // [If follow_symlinks is true], the yielded DirEntry values represent the target of the
@@ -134,12 +135,12 @@ impl DirHash<PathHash> {
             // get the type of their target (i.e., "file").
 
             if entry.file_type().is_dir() {
-                println!("Directory -> skip");
+                debug!("Directory -> skip");
                 continue;
             }
 
             if entry.file_type().is_symlink() {
-                println!("Symlink -> skip");
+                debug!("Symlink -> skip");
                 self.ignored
                     .push((entry.path().to_owned(), IgnoreReason::Symlink));
                 continue;
@@ -154,7 +155,7 @@ impl DirHash<PathHash> {
                     .unwrap()
                     .starts_with(".")
             {
-                println!("Hidden file -> skip");
+                debug!("Hidden file -> skip");
                 self.ignored
                     .push((entry.path().to_owned(), IgnoreReason::Hidden));
                 continue;
@@ -166,6 +167,7 @@ impl DirHash<PathHash> {
                 Err(e) => {
                     if ignore_invalid_filetypes {
                         if let DirHashError::InvalidFileType(filetype, path) = e {
+                            warn!("Ignored invalid file type {:?} for {:?}", filetype, path);
                             match filetype {
                                 InvalidFileTypeKind::Dir => {
                                     self.ignored.push((path.to_owned(), IgnoreReason::Dir))
@@ -184,8 +186,12 @@ impl DirHash<PathHash> {
                                     self.ignored.push((path.to_owned(), IgnoreReason::Socket))
                                 }
                             }
+                        } else {
+                            error!("Error while creating PathHash: {}", e);
+                            return Err(e);
                         }
                     } else {
+                        error!("Error while creating PathHash: {}", e);
                         return Err(e);
                     }
                 }

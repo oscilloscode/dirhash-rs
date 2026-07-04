@@ -194,3 +194,12 @@ pub fn create_tempdir_with_links() -> TempDir {
 
     dir
 }
+
+pub fn init_tracing() {
+    let _ = tracing_subscriber::fmt()
+        .with_test_writer()
+        .with_max_level(tracing::Level::DEBUG)
+        .with_file(true)
+        .with_target(false)
+        .try_init();
+}

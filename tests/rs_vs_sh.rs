@@ -13,6 +13,7 @@ use std::{
 use dirhash_rs::dirhash::{DirHash, IgnoreReason};
 use dirhash_rs::test_config;
 use tempfile::tempdir;
+use tracing::{debug, info};
 
 mod common;
 
@@ -41,12 +42,12 @@ fn compute_hash_with_sh(
 
     cmd.arg(format!("fd {} -t f --exec sha256sum | sort", fd_args));
 
-    eprintln!("Cmd: {:?}", cmd);
+    info!("Cmd: {:?}", cmd);
 
     let hash_list_output = cmd.output().expect("Command failed");
 
     let sh_hashtable_str = String::from_utf8_lossy(&hash_list_output.stdout);
-    eprintln!("{}", &sh_hashtable_str);
+    debug!("{}", &sh_hashtable_str);
 
     // Inefficient (recalculation), but shouldn't be a problem for tests
     let mut cmd = Command::new("bash");
@@ -57,7 +58,7 @@ fn compute_hash_with_sh(
         fd_args
     ));
 
-    eprintln!("Cmd: {:?}", cmd);
+    info!("Cmd: {:?}", cmd);
 
     let rec_hash_output = cmd.output().expect("Command failed");
     let rec_hash = String::from_utf8_lossy(&rec_hash_output.stdout);
@@ -67,13 +68,15 @@ fn compute_hash_with_sh(
         .next()
         .expect("Couldn't extract the hash string from the sh output");
 
-    eprintln!("{}", &sh_hash_str);
+    debug!("{}", &sh_hash_str);
 
     (sh_hashtable_str.to_string(), sh_hash_str.to_string())
 }
 
 #[test]
 fn with_empty_files_and_check_lc_all_ordering() {
+    common::init_tracing();
+
     // Setup
     // ------
 
@@ -161,6 +164,8 @@ fn with_empty_files_and_check_lc_all_ordering() {
 
 #[test]
 fn ignoring_invalid_files() {
+    common::init_tracing();
+
     // Setup
     // ------
 
@@ -278,6 +283,8 @@ fn ignoring_invalid_files() {
 
 #[test]
 fn following_symlinks() {
+    common::init_tracing();
+
     // Setup
     // ------
 
@@ -342,6 +349,8 @@ fn following_symlinks() {
 
 #[test]
 fn not_following_symlinks() {
+    common::init_tracing();
+
     // Setup
     // ------
 
@@ -413,6 +422,8 @@ fn not_following_symlinks() {
 
 #[test]
 fn including_hidden_files() {
+    common::init_tracing();
+
     // Setup
     // ------
 
@@ -468,6 +479,8 @@ fn including_hidden_files() {
 
 #[test]
 fn ignoring_hidden_files() {
+    common::init_tracing();
+
     // Setup
     // ------
 
@@ -522,6 +535,8 @@ fn ignoring_hidden_files() {
 
 #[test]
 fn comparing_rs_sh_with_random_data() {
+    common::init_tracing();
+
     // Setup
     // ------
     let min_file_count = test_config::get_random_test_config().min_file_count;
@@ -562,7 +577,7 @@ fn comparing_rs_sh_with_random_data() {
         assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
         let duration = start.elapsed();
-        eprintln!("Time elapsed: {:?}\n\n", duration);
+        info!("Time elapsed: {:?}\n\n", duration);
 
         dir.close().expect("Can't close tempdir");
     }
