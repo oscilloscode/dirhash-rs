@@ -21,7 +21,7 @@ mod common;
 #[test]
 fn with_files_from_dir_dont_follow_symlinks() {
     common::init_tracing();
-    let dir = common::create_tempdir_with_links();
+    let dir = common::create_tempdir_with_links(None);
 
     let mut dh = DirHash::new()
         .with_files_from_dir(dir.path(), true, false, true, false)
@@ -74,7 +74,7 @@ fn with_files_from_dir_dont_follow_symlinks() {
 #[test]
 fn with_files_from_dir_follow_symlinks() {
     common::init_tracing();
-    let dir = common::create_tempdir_with_links();
+    let dir = common::create_tempdir_with_links(None);
 
     let mut dh = DirHash::new()
         .with_files_from_dir(dir.path(), true, true, true, false)

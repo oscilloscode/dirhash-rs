@@ -168,46 +168,8 @@ fn ignoring_invalid_files() {
 
     // Setup
     // ------
+    let dir = common::create_tempdir_with_links_to_invalid(None);
 
-    let dir = common::creating_tempdir(None, 3, &["d", "e"][..], 1, &["r", "s"][..], 2, false);
-
-    // Adding links to invalid filetypes, as this is significantly easier than creating them all.
-    // When activating "follow_links", walkdir returns the type of the target file instead of the
-    // "link" file type for the link.
-
-    // block device
-    let block_dev_path = test_config::get_filepath_config().block_dev;
-    let block_dev_metadata =
-        fs::metadata(&block_dev_path).expect("Can't get metadata of block device");
-    assert!(block_dev_metadata.file_type().is_block_device());
-
-    let block_dev_link = dir.path().join("d/s/block_device_link");
-    unix::fs::symlink(block_dev_path, &block_dev_link).expect("Error while creating symlink");
-
-    // character device
-    let char_dev_path = test_config::get_filepath_config().char_dev;
-    let char_dev_metadata =
-        fs::metadata(&char_dev_path).expect("Can't get metadata of char device");
-    assert!(char_dev_metadata.file_type().is_char_device());
-
-    let char_dev_link = dir.path().join("char_device_link");
-    unix::fs::symlink(char_dev_path, &char_dev_link).expect("Error while creating symlink");
-
-    // fifo
-    let fifo_path = test_config::get_filepath_config().fifo;
-    let fifo_metadata = fs::metadata(&fifo_path).expect("Can't get metadata of FIFO");
-    assert!(fifo_metadata.file_type().is_fifo());
-
-    let fifo_link = dir.path().join("d/fifo_link");
-    unix::fs::symlink(fifo_path, &fifo_link).expect("Error while creating symlink");
-
-    // socket
-    let socket_path = test_config::get_filepath_config().socket;
-    let socket_metadata = fs::metadata(&socket_path).expect("Can't get metadata of socket");
-    assert!(socket_metadata.file_type().is_socket());
-
-    let socket_link = dir.path().join("d/r/socket_link");
-    unix::fs::symlink(socket_path, &socket_link).expect("Error while creating symlink");
     // rs implementation
     // ------------------
 
@@ -215,15 +177,16 @@ fn ignoring_invalid_files() {
         .with_files_from_dir(dir.path(), true, true, true, true)
         .expect("Can't create DirHash");
 
-    assert_eq!(
-        dh.ignored(),
-        vec![
-            (char_dev_link, IgnoreReason::CharDevice),
-            (fifo_link, IgnoreReason::FIFO),
-            (socket_link, IgnoreReason::Socket),
-            (block_dev_link, IgnoreReason::BlockDevice),
-        ]
-    );
+    let ignored = dh.ignored();
+
+    assert!(ignored[0].0.ends_with("block_device_link"));
+    assert_eq!(ignored[0].1, IgnoreReason::BlockDevice);
+    assert!(ignored[1].0.ends_with("d/r/socket_link"));
+    assert_eq!(ignored[1].1, IgnoreReason::Socket);
+    assert!(ignored[2].0.ends_with("d/s/fifo_link"));
+    assert_eq!(ignored[2].1, IgnoreReason::FIFO);
+    assert!(ignored[3].0.ends_with("e/char_device_link"));
+    assert_eq!(ignored[3].1, IgnoreReason::CharDevice);
 
     assert!(dh.compute_hash().is_ok());
 
@@ -246,36 +209,61 @@ fn ignoring_invalid_files() {
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./1
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./2
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/1
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/0
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/2
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/0
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/2
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/1
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/0
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/2
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/0
     // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/2
     //
-    // -> 4c05901d5193745590fb20d2ccea6ba2360950149a7b10977d0b56adf156d8f9
+    // -> 4778b420c8834f6e833db5be5ecab1864f2d3740b576f790fe7376fe43ab096d
     assert_eq!(
         rs_hashtable_str,
+
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./1\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./2\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/1\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/0\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/r/2\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/0\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/s/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/t/2\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/1\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/0\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/r/2\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/0\n\
-         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/1\n"
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/s/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/2\n"
     );
     assert_eq!(
         rs_hash_str,
-        "4c05901d5193745590fb20d2ccea6ba2360950149a7b10977d0b56adf156d8f9"
+        "4778b420c8834f6e833db5be5ecab1864f2d3740b576f790fe7376fe43ab096d"
     );
 
     dir.close().expect("Can't close tempdir");
@@ -288,7 +276,7 @@ fn following_symlinks() {
     // Setup
     // ------
 
-    let dir = common::create_tempdir_with_links();
+    let dir = common::create_tempdir_with_links(None);
 
     // rs implementation
     // ------------------
@@ -354,7 +342,7 @@ fn not_following_symlinks() {
     // Setup
     // ------
 
-    let dir = common::create_tempdir_with_links();
+    let dir = common::create_tempdir_with_links(None);
 
     // rs implementation
     // ------------------

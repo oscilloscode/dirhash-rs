@@ -1,10 +1,9 @@
 use std::{
-    fs::{self, File},
-    io::Write,
-    os::unix,
-    path::Path,
+    fs::{self, File}, io::Write, os::unix::{self, fs::FileTypeExt}, path::Path,
 };
 use tempfile::TempDir;
+
+use dirhash_rs::test_config;
 
 fn create_numbered_files(dir: impl AsRef<Path>, n: usize, add_random_data: bool) {
     for i in 0..n {
@@ -158,8 +157,8 @@ pub fn creating_tempdir(
 // │       ├── 1
 // │       └── upwards_link -> /tmp/.tmp6en1HI/1
 // └── downwards_link -> /tmp/.tmp6en1HI/a/0
-pub fn create_tempdir_with_links() -> TempDir {
-    let dir = creating_tempdir(None, 2, &["a", "b"][..], 2, &["x", "y"][..], 2, false);
+pub fn create_tempdir_with_links(dir_name: Option<String>) -> TempDir {
+    let dir = creating_tempdir(dir_name, 2, &["a", "b"][..], 2, &["x", "y"][..], 2, false);
 
     fs::write(dir.path().join("a/0"), "a/0").expect("Can't write to tempfile");
     fs::write(dir.path().join("1"), "1").expect("Can't write to tempfile");
@@ -191,6 +190,99 @@ pub fn create_tempdir_with_links() -> TempDir {
         dir.path().join("b/x/upwards_dirlink"),
     )
     .expect("Error while creating symlink");
+
+    dir
+}
+
+// Creates a TempDir with links to invalid filetypes , as this is significantly easier than creating
+// them all. When activating "follow_links", walkdir returns the type of the target file instead of
+// the "link" file type for the link.
+//
+// .
+// ├── 0
+// ├── 1
+// ├── 2
+// ├── block_device_link -> /dev/sda
+// ├── d
+// │   ├── 0
+// │   ├── 1
+// │   ├── r
+// │   │   ├── 0
+// │   │   ├── 1
+// │   │   ├── 2
+// │   │   └── socket_link -> /run/systemd/private
+// │   ├── s
+// │   │   ├── 0
+// │   │   ├── 1
+// │   │   ├── 2
+// │   │   └── fifo_link -> /run/systemd/inaccessible/fifo
+// │   └── t
+// │       ├── 0
+// │       ├── 1
+// │       └── 2
+// └── e
+//     ├── 0
+//     ├── 1
+//     ├── char_device_link -> /dev/null
+//     ├── r
+//     │   ├── 0
+//     │   ├── 1
+//     │   └── 2
+//     ├── s
+//     │   ├── 0
+//     │   ├── 1
+//     │   └── 2
+//     └── t
+//         ├── 0
+//         ├── 1
+//         └── 2
+//
+// The links point to files on your system based on the test config. However, the directory tree
+// stays always the same.
+pub fn create_tempdir_with_links_to_invalid(dir_name: Option<String>) -> TempDir {
+    let dir = creating_tempdir(
+        dir_name,
+        3,
+        &["d", "e"][..],
+        2,
+        &["r", "s", "t"][..],
+        3,
+        false,
+    );
+
+    // block device
+    let block_dev_path = test_config::get_filepath_config().block_dev;
+    let block_dev_metadata =
+        fs::metadata(&block_dev_path).expect("Can't get metadata of block device");
+    assert!(block_dev_metadata.file_type().is_block_device());
+
+    let block_dev_link = dir.path().join("block_device_link");
+    unix::fs::symlink(block_dev_path, &block_dev_link).expect("Error while creating symlink");
+
+    // character device
+    let char_dev_path = test_config::get_filepath_config().char_dev;
+    let char_dev_metadata =
+        fs::metadata(&char_dev_path).expect("Can't get metadata of char device");
+    assert!(char_dev_metadata.file_type().is_char_device());
+
+    let char_dev_link = dir.path().join("e/char_device_link");
+    unix::fs::symlink(char_dev_path, &char_dev_link).expect("Error while creating symlink");
+
+    // fifo
+    let fifo_path = test_config::get_filepath_config().fifo;
+    let fifo_metadata = fs::metadata(&fifo_path).expect("Can't get metadata of FIFO");
+    assert!(fifo_metadata.file_type().is_fifo());
+
+    let fifo_link = dir.path().join("d/s/fifo_link");
+    unix::fs::symlink(fifo_path, &fifo_link).expect("Error while creating symlink");
+
+    // socket
+    let socket_path = test_config::get_filepath_config().socket;
+    let socket_metadata = fs::metadata(&socket_path).expect("Can't get metadata of socket");
+    assert!(socket_metadata.file_type().is_socket());
+
+    let socket_link = dir.path().join("d/r/socket_link");
+    unix::fs::symlink(socket_path, &socket_link).expect("Error while creating symlink");
 
     dir
 }
