@@ -1,9 +1,11 @@
 use std::fs;
+use std::io::Write;
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 
 use dirhash_rs::test_config;
+use tempfile::NamedTempFile;
 
 mod common;
 
@@ -465,4 +467,112 @@ ec776c447825f880e04c010393c19179b5c472fe32682a941194d1c93a895c6a
     assert_eq!(finger_content, expected_output_second_run);
 
     dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn verify() {
+    let dir = common::creating_tempdir(
+        Some(String::from(".tmp_cli_verify")),
+        1,
+        &["d"][..],
+        1,
+        &["e", "f"][..],
+        2,
+        false,
+    );
+
+    let mut fingerprint_file = NamedTempFile::new().expect("Can't create temporary fingerprint file");
+
+    let finger_content = r#"# {
+#   "version": 1,
+#   "path": "/tmp/.tmp_cli_verify",
+#   "absolute": false,
+#   "follow_symlinks": false,
+#   "include_hidden_files": false,
+#   "ignore_invalid_filetypes": false
+# }
+
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/e/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/e/1
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/f/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/f/1
+
+d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
+"#;
+
+    write!(fingerprint_file, "{}", finger_content).unwrap();
+
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
+    cmd.assert().success();
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn verify_bad_version() {
+    let mut fingerprint_file = NamedTempFile::new().expect("Can't create temporary fingerprint file");
+
+    let finger_content = r#"# {
+#   "version": 2,
+#   "path": "/does/not/exist",
+#   "absolute": false,
+#   "follow_symlinks": false,
+#   "include_hidden_files": false,
+#   "ignore_invalid_filetypes": false
+# }
+
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/e/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/e/1
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/f/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/f/1
+
+d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
+"#;
+
+    write!(fingerprint_file, "{}", finger_content).unwrap();
+
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
+    cmd.assert().failure().stdout("").stderr(
+        predicates::str::contains("panicked")
+            .and(predicates::str::contains("Currently, only fingerprints with version \"1\" are supported!"))
+    );
+}
+
+#[test]
+pub fn verify_path_doesnt_exist() {
+    let mut fingerprint_file = NamedTempFile::new().expect("Can't create temporary fingerprint file");
+
+    let finger_content = r#"# {
+#   "version": 1,
+#   "path": "/does/not/exist",
+#   "absolute": false,
+#   "follow_symlinks": false,
+#   "include_hidden_files": false,
+#   "ignore_invalid_filetypes": false
+# }
+
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/e/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/e/1
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/f/0
+e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./d/f/1
+
+d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
+"#;
+
+    write!(fingerprint_file, "{}", finger_content).unwrap();
+
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
+    cmd.assert().failure().stdout("").stderr(
+        predicates::str::contains("panicked")
+            .and(predicates::str::contains("code: 2, kind: NotFound, message: \"No such file or directory\""))
+    );
 }
