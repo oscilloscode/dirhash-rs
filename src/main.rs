@@ -310,6 +310,10 @@ fn verify_files(fingerprint_path: PathBuf, paranoid: bool) {
 
     debug!("meta = {meta:?}");
 
+    if meta.version != 1 {
+        panic!("Currently, only fingerprints with version \"1\" are supported!")
+    }
+
     let fingerprint = calculate_fingerprint(meta, paranoid);
 
     print!("Calculated fingerprint:\n{}", fingerprint);
