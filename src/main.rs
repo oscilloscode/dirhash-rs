@@ -161,7 +161,7 @@ fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bo
 
     for entry in WalkDir::new(path).follow_links(false) {
         let entry = entry.unwrap();
-        info!(
+        debug!(
             "type: {:?} block: {} char: {} fifo: {} socket: {} path: {}",
             entry.file_type(),
             entry.file_type().is_block_device(),
@@ -170,6 +170,28 @@ fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bo
             entry.file_type().is_socket(),
             entry.path().display()
         );
+
+        let ft = entry.file_type();
+
+        let file_type_str = if ft.is_file() {
+            "File:"
+        } else if ft.is_dir() {
+            "Directory:"
+        } else if ft.is_symlink() {
+            "Symlink:"
+        } else if ft.is_block_device() {
+            "Block device:"
+        } else if ft.is_char_device() {
+            "Char device:"
+        } else if ft.is_fifo() {
+            "FIFO:"
+        } else if ft.is_socket() {
+            "Socket:"
+        } else {
+            "Unknown:"
+        };
+
+        println!("{file_type_str:<14} {}",entry.path().display());
     }
 }
 
