@@ -329,8 +329,6 @@ mod tests {
         ];
         ht.append(&mut v);
 
-        print!("{}", ht.to_string());
-
         assert_eq!(
             ht.to_string(),
             "1616161616161616161616161616161616161616161616161616161616161616  /path0\n\
