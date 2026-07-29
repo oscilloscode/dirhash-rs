@@ -10,16 +10,14 @@ use std::{
     fmt::Write,
     fs::{self, File},
     io::{BufRead, BufReader},
-    os::unix::fs::FileTypeExt,
     path::{Path, PathBuf},
 };
 
 use clap::{Args, Parser, Subcommand};
-use dirhash_rs::dirhash::DirHash;
+use dirhash_rs::{dirhash::DirHash, pathhash::PathHashProvider};
 use pathdiff::diff_paths;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
-use walkdir::WalkDir;
 
 #[derive(Debug, Args, Clone, Serialize, Deserialize)]
 struct WalkOptions {
@@ -71,7 +69,7 @@ enum Commands {
         #[command(flatten)]
         walk: WalkOptions,
         /// Display the type of the listed files
-        #[arg(short = 't', long = "test")]
+        #[arg(short = 't', long = "type")]
         display_type: bool,
     },
     /// Analyze the files recursively and create a fingerprint
@@ -156,43 +154,58 @@ fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bo
     );
     debug!("Paranoid mode: {:?}", paranoid);
 
-    // TODO replace with code from dirhash. if there is a bug in the file discovery which leads to
-    // more/less files being included, this wouldn't show it.
+    let dh = DirHash::new()
+        .with_files_from_dir(
+            &path,
+            !walk.absolute,
+            walk.follow_symlinks,
+            walk.include_hidden_files,
+            walk.ignore_invalid_filetypes,
+        )
+        .expect("Can't create DirHash");
 
-    for entry in WalkDir::new(path).follow_links(false) {
-        let entry = entry.unwrap();
-        debug!(
-            "type: {:?} block: {} char: {} fifo: {} socket: {} path: {}",
-            entry.file_type(),
-            entry.file_type().is_block_device(),
-            entry.file_type().is_char_device(),
-            entry.file_type().is_fifo(),
-            entry.file_type().is_socket(),
-            entry.path().display()
-        );
-
-        let ft = entry.file_type();
-
-        let file_type_str = if ft.is_file() {
-            "File:"
-        } else if ft.is_dir() {
-            "Directory:"
-        } else if ft.is_symlink() {
-            "Symlink:"
-        } else if ft.is_block_device() {
-            "Block device:"
-        } else if ft.is_char_device() {
-            "Char device:"
-        } else if ft.is_fifo() {
-            "FIFO:"
-        } else if ft.is_socket() {
-            "Socket:"
-        } else {
-            "Unknown:"
-        };
-
-        println!("{file_type_str:<14} {}",entry.path().display());
+    for path in dh
+        .list_paths()
+        .expect("Can't get the paths from the dirhash")
+    {
+        println!("{}", path.display());
     }
+
+    if !dh.ignored().is_empty() {
+        let meta = FingerprintMetadata {
+            version: 1,
+            path: path.clone(),
+            walk: walk.clone(),
+        };
+        print!("{}", ignored_files_printout(&dh, &meta));
+    }
+
+}
+
+fn ignored_files_printout<T: PathHashProvider>(dh: &DirHash<T>, meta: &FingerprintMetadata) -> String {
+    let mut ignore_string = String::new();
+    writeln!(&mut ignore_string, "\nIgnored files:")
+        .expect("Can't write ignored files header to string buffer");
+
+    for (ignored_path, reason) in dh.ignored() {
+        let relative_path = (!meta.walk.absolute).then(|| {
+            PathBuf::from(".").join(
+                diff_paths(ignored_path, &meta.path)
+                    .expect("Can't create relative path for ignored file"),
+            )
+        });
+
+        let ignored_path = relative_path.as_deref().unwrap_or(ignored_path.as_path());
+
+        write!(
+            &mut ignore_string,
+            "{}: {:?}\n",
+            ignored_path.display(),
+            reason
+        )
+        .expect("Can't write ignored files to string buffer");
+    }
+    ignore_string
 }
 
 fn calculate_fingerprint(meta: FingerprintMetadata, paranoid: bool) -> String {
@@ -232,27 +245,7 @@ fn calculate_fingerprint(meta: FingerprintMetadata, paranoid: bool) -> String {
     .expect("Can't write fingerprint to string buffer");
 
     if !dh.ignored().is_empty() {
-        writeln!(&mut fingerprint, "\nIgnored files:")
-            .expect("Can't write ignored files header to string buffer");
-
-        for (ignored_path, reason) in dh.ignored() {
-            let relative_path = (!meta.walk.absolute).then(|| {
-                PathBuf::from(".").join(
-                    diff_paths(ignored_path, &meta.path)
-                        .expect("Can't create relative path for ignored file"),
-                )
-            });
-
-            let ignored_path = relative_path.as_deref().unwrap_or(ignored_path.as_path());
-
-            write!(
-                &mut fingerprint,
-                "{}: {:?}\n",
-                ignored_path.display(),
-                reason
-            )
-            .expect("Can't write ignored files to string buffer");
-        }
+        write!(&mut fingerprint,"{}", ignored_files_printout(&dh, &meta)).expect("Can't write ignored files to string buffer");
     }
 
     fingerprint
