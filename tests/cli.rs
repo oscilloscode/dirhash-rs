@@ -27,6 +27,269 @@ pub fn help() {
 }
 
 #[test]
+pub fn list() {
+    let dir = common::creating_tempdir(
+        Some(String::from(".tmp_cli_list")),
+        4,
+        &["a", "b", "c"][..],
+        3,
+        &["s", "t"][..],
+        2,
+        false,
+    );
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r#"0
+1
+2
+3
+a/0
+a/1
+a/2
+a/s/0
+a/s/1
+a/t/0
+a/t/1
+b/0
+b/1
+b/2
+b/s/0
+b/s/1
+b/t/0
+b/t/1
+c/0
+c/1
+c/2
+c/s/0
+c/s/1
+c/t/0
+c/t/1
+"#);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn list_absolute_flag() {
+    let dir = common::creating_tempdir(
+        Some(String::from(".tmp_cli_list_absolute_flag")),
+        2,
+        &["d", "e"][..],
+        1,
+        &["x", "y"][..],
+        1,
+        false,
+    );
+
+    // Relative paths
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r#"0
+1
+d/0
+d/x/0
+d/y/0
+e/0
+e/x/0
+e/y/0
+"#);
+
+    // Abolute paths
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap(), "-a"]);
+    cmd.assert().success().stdout(r#"/tmp/.tmp_cli_list_absolute_flag/0
+/tmp/.tmp_cli_list_absolute_flag/1
+/tmp/.tmp_cli_list_absolute_flag/d/0
+/tmp/.tmp_cli_list_absolute_flag/d/x/0
+/tmp/.tmp_cli_list_absolute_flag/d/y/0
+/tmp/.tmp_cli_list_absolute_flag/e/0
+/tmp/.tmp_cli_list_absolute_flag/e/x/0
+/tmp/.tmp_cli_list_absolute_flag/e/y/0
+"#);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn list_hidden_flag() {
+    let dir = tempfile::Builder::new()
+            // .keep(true)
+            .rand_bytes(0)
+            .prefix(".tmp_cli_list_hidden_flag")
+            .tempdir()
+            .expect("Can't create tempdir");
+
+    let datafile_path = dir.path().join("datafile");
+    std::fs::write(datafile_path, b"data").expect("Can't write to tempfile");
+
+    let hidden_path = dir.path().join(".hidden");
+    std::fs::write(hidden_path, b"hidden").expect("Can't write to tempfile");
+
+    // Ignoring hidden files
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r#"datafile
+
+Ignored files:
+./.hidden: Hidden
+"#);
+
+    // Including hidden files
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap(), "-H"]);
+    cmd.assert().success().stdout(".hidden\ndatafile\n");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn list_symlink_flag() {
+    let dir = common::create_tempdir_with_links(Some(String::from(".tmp_cli_list_symlink_flag")));
+
+    // Not following symlinks and ignoring them
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r#"0
+1
+a/0
+a/1
+a/x/0
+a/x/1
+a/y/0
+a/y/1
+b/0
+b/1
+b/x/0
+b/x/1
+b/y/0
+b/y/1
+
+Ignored files:
+./a/downwards_dirlink: Symlink
+./b/x/upwards_dirlink: Symlink
+./b/y/upwards_link: Symlink
+./downwards_link: Symlink
+"#);
+
+    // Following symlinks
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap(), "-L"]);
+    cmd.assert().success().stdout(r#"0
+1
+a/0
+a/1
+a/downwards_dirlink/0
+a/downwards_dirlink/1
+a/downwards_dirlink/upwards_dirlink/0
+a/downwards_dirlink/upwards_dirlink/1
+a/x/0
+a/x/1
+a/y/0
+a/y/1
+b/0
+b/1
+b/x/0
+b/x/1
+b/x/upwards_dirlink/0
+b/x/upwards_dirlink/1
+b/y/0
+b/y/1
+b/y/upwards_link
+downwards_link
+"#);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn list_invalid_flag() {
+
+    let dir = common::create_tempdir_with_links_to_invalid(Some(String::from(".tmp_cli_list_invalid_flag")));
+
+    // Not following symlinks, and thus no invalid files encountered
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r#"0
+1
+2
+d/0
+d/1
+d/r/0
+d/r/1
+d/r/2
+d/s/0
+d/s/1
+d/s/2
+d/t/0
+d/t/1
+d/t/2
+e/0
+e/1
+e/r/0
+e/r/1
+e/r/2
+e/s/0
+e/s/1
+e/s/2
+e/t/0
+e/t/1
+e/t/2
+
+Ignored files:
+./block_device_link: Symlink
+./d/r/socket_link: Symlink
+./d/s/fifo_link: Symlink
+./e/char_device_link: Symlink
+"#);
+
+    // Following symlinks -> invalid files found -> panic
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap(), "-L"]);
+    cmd.assert().failure().stdout("").stderr(
+        predicates::str::contains("panicked")
+            .and(predicates::str::contains("InvalidFileType"))
+    );
+
+    // Following symlinks -> invalid files found, but ignored
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["list", dir.path().to_str().unwrap(), "-LI"]);
+    cmd.assert().success().stdout(r#"0
+1
+2
+d/0
+d/1
+d/r/0
+d/r/1
+d/r/2
+d/s/0
+d/s/1
+d/s/2
+d/t/0
+d/t/1
+d/t/2
+e/0
+e/1
+e/r/0
+e/r/1
+e/r/2
+e/s/0
+e/s/1
+e/s/2
+e/t/0
+e/t/1
+e/t/2
+
+Ignored files:
+./block_device_link: BlockDevice
+./d/r/socket_link: Socket
+./d/s/fifo_link: FIFO
+./e/char_device_link: CharDevice
+"#);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
 pub fn analyze() {
     let dir = common::creating_tempdir(
         Some(String::from(".tmp_cli_analyze")),
