@@ -100,6 +100,25 @@ where
 
         Ok(())
     }
+
+    pub fn list_paths(&self) -> Result<Vec<&Path>> {
+        let mut paths = vec![];
+
+        for ph in &self.pathhashvec {
+            let maybe_stripped_path = match &self.root {
+                Some(root) => ph
+                    .path()
+                    .strip_prefix(root)?,
+                None => ph.path(),
+            };
+
+            paths.push(maybe_stripped_path);
+        }
+
+        paths.sort();
+
+        Ok(paths)
+    }
 }
 
 impl DirHash<PathHash> {
@@ -438,5 +457,55 @@ mod tests {
         // -> e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855
         assert_eq!(dh.hashtable().unwrap().to_string(), "");
         assert_eq!(dh.hash().unwrap(), b"\xe3\xb0\xc4\x42\x98\xfc\x1c\x14\x9a\xfb\xf4\xc8\x99\x6f\xb9\x24\x27\xae\x41\xe4\x64\x9b\x93\x4c\xa4\x95\x99\x1b\x78\x52\xb8\x55");
+    }
+
+    #[test]
+    fn list_paths_with_root() {
+        let spies = vec![
+            PathHashSpy::new("/pre/fix/some/path", None, None),
+            PathHashSpy::new("/pre/fix/other/path", None, None),
+        ];
+        let dh = DirHash::new()
+            .with_files(spies)
+            .with_root(Path::new("/pre/fix"));
+
+        let paths = dh.list_paths().expect("Can't get the paths from the dirhash");
+        assert_eq!(paths[0], "other/path");
+        assert_eq!(paths[1], "some/path");
+    }
+
+    #[test]
+    fn list_paths_no_root() {
+        let spies = vec![
+            PathHashSpy::new("/pre/fix/some/path", None, None),
+            PathHashSpy::new("/pre/fix/other/path", None, None),
+        ];
+        let dh = DirHash::new().with_files(spies);
+
+        let paths = dh.list_paths().expect("Can't get the paths from the dirhash");
+        assert_eq!(paths[0], "/pre/fix/other/path");
+        assert_eq!(paths[1], "/pre/fix/some/path");
+    }
+
+    #[test]
+    fn list_paths_mismatched_root() {
+        let spies = vec![
+            PathHashSpy::new("/pre/fix/some/path", None, None),
+            PathHashSpy::new("/pre/fix/other/path", None, None),
+        ];
+        let dh = DirHash::new()
+            .with_files(spies)
+            .with_root(Path::new("/not/prefix"));
+
+        let err = dh.list_paths().unwrap_err();
+        assert!(matches!(err, DirHashError::RootMismatch(_)));
+    }
+
+    #[test]
+    fn list_paths_no_files() {
+        let dh: DirHash<PathHashSpy> = DirHash::new();
+
+        let paths = dh.list_paths().expect("Can't get the paths from the dirhash");
+        assert!(paths.is_empty());
     }
 }
