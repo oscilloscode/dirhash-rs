@@ -4,6 +4,7 @@ pub mod dirhash;
 pub mod error;
 pub mod hashtable;
 pub mod pathhash;
+pub mod bash;
 
 #[cfg(feature = "test-utils")]
 pub mod test_config;

@@ -2,76 +2,16 @@
 //! - Compare outputs from rs/sh with random data
 
 use std::{
-    fs::{self, File},
-    io::Write,
-    os::unix::{self, fs::FileTypeExt},
-    path::Path,
-    process::Command,
-    time::Instant,
+    fs::File, io::Write, time::Instant,
 };
 
-use dirhash_rs::dirhash::{DirHash, IgnoreReason};
+use dirhash_rs::{dirhash::{DirHash, IgnoreReason}, bash::compute_recursive_hash_with_bash};
 use dirhash_rs::test_config;
 use tempfile::tempdir;
-use tracing::{debug, info};
+use tracing::info;
 
 mod common;
 
-// Convenience function for computing hashtable and hash with sh (fd & sha256sum)
-fn compute_hash_with_sh(
-    dir: &Path,
-    follow_links: bool,
-    include_hidden_files: bool,
-) -> (String, String) {
-    let mut cmd = Command::new("bash");
-    cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
-
-    let mut fd_args = String::new();
-
-    if follow_links {
-        // --follow will not only go into symlinked directories, but also follow symlinked files.
-        // Then, the filetype of the target file is used when matching the "-t" flag. Thus, only the
-        // type "file" (and not "link") should be taken into account. This behavior is similar to
-        // following links and the resulting target types when using walkdir.
-        fd_args.push_str("--follow ");
-    }
-
-    if include_hidden_files {
-        fd_args.push_str("--hidden ");
-    }
-
-    cmd.arg(format!("fd {} -t f --exec sha256sum | sort", fd_args));
-
-    info!("Cmd: {:?}", cmd);
-
-    let hash_list_output = cmd.output().expect("Command failed");
-
-    let sh_hashtable_str = String::from_utf8_lossy(&hash_list_output.stdout);
-    debug!("{}", &sh_hashtable_str);
-
-    // Inefficient (recalculation), but shouldn't be a problem for tests
-    let mut cmd = Command::new("bash");
-    cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
-
-    cmd.arg(format!(
-        "fd {} -t f --exec sha256sum | sort | sha256sum",
-        fd_args
-    ));
-
-    info!("Cmd: {:?}", cmd);
-
-    let rec_hash_output = cmd.output().expect("Command failed");
-    let rec_hash = String::from_utf8_lossy(&rec_hash_output.stdout);
-
-    let sh_hash_str = rec_hash
-        .split_whitespace()
-        .next()
-        .expect("Couldn't extract the hash string from the sh output");
-
-    debug!("{}", &sh_hash_str);
-
-    (sh_hashtable_str.to_string(), sh_hash_str.to_string())
-}
 
 #[test]
 fn with_empty_files_and_check_lc_all_ordering() {
@@ -105,7 +45,7 @@ fn with_empty_files_and_check_lc_all_ordering() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
+    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
 
     // Verification
     // ------------
@@ -195,7 +135,7 @@ fn ignoring_invalid_files() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), true, false);
+    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), true, false);
 
     // Verification
     // ------------
@@ -293,7 +233,7 @@ fn following_symlinks() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), true, false);
+    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), true, false);
 
     // Verification
     // ------------
@@ -374,7 +314,7 @@ fn not_following_symlinks() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
+    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
 
     // Verification
     // ------------
@@ -446,7 +386,7 @@ fn including_hidden_files() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, true);
+    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, true);
 
     // Verification
     // ------------
@@ -503,7 +443,7 @@ fn ignoring_hidden_files() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
+    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
 
     // Verification
     // ------------
@@ -557,7 +497,7 @@ fn comparing_rs_sh_with_random_data() {
 
         // sh implementation
         // ------------------
-        let (sh_hashtable_str, sh_hash_str) = compute_hash_with_sh(dir.path(), false, false);
+        let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
 
         // Verification
         // ------------
