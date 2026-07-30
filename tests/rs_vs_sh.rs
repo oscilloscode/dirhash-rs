@@ -302,7 +302,7 @@ fn following_symlinks() {
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
     assert_eq!(
-        dh.hashtable().unwrap().to_string(),
+        rs_hashtable_str,
         "2c1e9c3dc66c67faa7bcbddb69f4d2fb70cfffc2ca0188c3a8b2a0b757310c83  ./a/downwards_dirlink/1\n\
          2c1e9c3dc66c67faa7bcbddb69f4d2fb70cfffc2ca0188c3a8b2a0b757310c83  ./b/x/1\n\
          3b57e943f5f5d6649657683d4625b5512c745d010537379548285946b2d4b791  ./a/downwards_dirlink/upwards_dirlink/0\n\
@@ -328,8 +328,8 @@ fn following_symlinks() {
     );
 
     assert_eq!(
-        dh.hash().unwrap(),
-        b"\xa9\xae\x74\x27\xd5\x34\x1a\x8d\xfe\x93\x3b\x11\x8f\xb4\x40\xd6\x9b\x63\x0f\x45\xd2\x90\x93\x0a\xf2\xea\x9d\x2a\x93\x31\x6a\x6b"
+        rs_hash_str,
+        "a9ae7427d5341a8dfe933b118fb440d69b630f45d290930af2ea9d2a93316a6b"
     );
 
     dir.close().expect("Can't close tempdir");
@@ -383,7 +383,7 @@ fn not_following_symlinks() {
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
     assert_eq!(
-        dh.hashtable().unwrap().to_string(),
+        rs_hashtable_str,
         "2c1e9c3dc66c67faa7bcbddb69f4d2fb70cfffc2ca0188c3a8b2a0b757310c83  ./b/x/1\n\
          3b57e943f5f5d6649657683d4625b5512c745d010537379548285946b2d4b791  ./a/y/0\n\
          601bde2d34fb40a2b4f9ff019e5ce3b662b2ecbd0de84a5470f6dd3791293750  ./a/y/1\n\
@@ -401,8 +401,8 @@ fn not_following_symlinks() {
     );
 
     assert_eq!(
-        dh.hash().unwrap(),
-        b"\x86\xd6\xb0\x64\xdc\xf4\x98\x61\x54\x35\xa8\x79\x22\x1a\x1a\x2d\x76\xb9\x69\xdc\x67\xcb\xd3\xc8\xfd\x7f\x35\xf7\x67\xcb\x8e\x10"
+        rs_hash_str,
+        "86d6b064dcf498615435a879221a1a2d76b969dc67cbd3c8fd7f35f767cb8e10"
     );
 
     dir.close().expect("Can't close tempdir");
@@ -455,12 +455,12 @@ fn including_hidden_files() {
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
     assert_eq!(
-        dh.hashtable().unwrap().to_string(),
+        rs_hashtable_str,
         "2a5fe7861edde7d25b095fb793743c343ee075069cf0c66db8a2587dc84a0710  ./.hidden\n\
          916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
     );
 
-    assert_eq!(dh.hash().unwrap(), b"\xa4\x55\x43\xdc\x9c\x0e\x28\xcf\x4e\xbf\x10\xe9\x52\x7a\x0d\xa0\x6f\x8f\x37\x7e\x38\x2a\x29\x72\x98\x9a\xb6\x66\xb1\x23\x64\x28");
+    assert_eq!(rs_hash_str, "a45543dc9c0e28cf4ebf10e9527a0da06f8f377e382a2972989ab666b1236428");
 
     dir.close().expect("Can't close tempdir");
 }
@@ -512,11 +512,11 @@ fn ignoring_hidden_files() {
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
     assert_eq!(
-        dh.hashtable().unwrap().to_string(),
+        rs_hashtable_str,
         "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
     );
 
-    assert_eq!(dh.hash().unwrap(), b"\x0e\x5b\x09\x6d\x50\x7d\x3f\xeb\xf1\x3c\xf2\x7b\x36\x1e\x0b\x4c\x64\x7b\x08\x43\x0e\x22\x45\xeb\xbf\xa1\x86\x06\x72\x17\xa8\xf9");
+    assert_eq!(rs_hash_str, "0e5b096d507d3febf13cf27b361e0b4c647b08430e2245ebbfa186067217a8f9");
 
     dir.close().expect("Can't close tempdir");
 }
