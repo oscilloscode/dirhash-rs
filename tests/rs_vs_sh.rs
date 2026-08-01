@@ -5,7 +5,8 @@ use std::{
     fs::File, io::Write, time::Instant,
 };
 
-use dirhash_rs::{dirhash::{DirHash, IgnoreReason}, bash::compute_recursive_hash_with_bash};
+use assert_cmd::assert;
+use dirhash_rs::{bash::{compute_recursive_hash_with_bash, list_files_with_bash}, dirhash::{DirHash, IgnoreReason}};
 use dirhash_rs::test_config;
 use tempfile::tempdir;
 use tracing::info;
@@ -38,6 +39,13 @@ fn with_empty_files_and_check_lc_all_ordering() {
         .with_files_from_dir(dir.path(), true, false, true, false)
         .expect("Can't create DirHash");
 
+    let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+    let rs_list_paths_str = rs_list_paths
+        .iter()
+        .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     assert!(dh.compute_hash().is_ok());
 
     let rs_hash_str = hex::encode(dh.hash().unwrap());
@@ -45,13 +53,37 @@ fn with_empty_files_and_check_lc_all_ordering() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
+    let sh_list_paths_str = list_files_with_bash(dir.path(), false, false, false);
+
+    let (sh_hashtable_str, sh_hash_str) =
+        compute_recursive_hash_with_bash(dir.path(), false, false, false);
 
     // Verification
     // ------------
-
+    assert_eq!(sh_list_paths_str, rs_list_paths_str);
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        rs_list_paths_str,
+        "0\n\
+         1\n\
+         b,foo/0\n\
+         b,foo/x/0\n\
+         b,foo/x/1\n\
+         b,foo/y/0\n\
+         b,foo/y/1\n\
+         bc,pe/0\n\
+         bc,pe/x/0\n\
+         bc,pe/x/1\n\
+         bc,pe/y/0\n\
+         bc,pe/y/1\n\
+         bcd,ty/0\n\
+         bcd,ty/x/0\n\
+         bcd,ty/x/1\n\
+         bcd,ty/y/0\n\
+         bcd,ty/y/1"
+    );
 
     // Hash of various empty files in tree structure:
     //
@@ -103,6 +135,120 @@ fn with_empty_files_and_check_lc_all_ordering() {
 }
 
 #[test]
+fn absolute_paths() {
+    common::init_tracing();
+
+    // Setup
+    // ------
+
+    let dir = common::creating_tempdir(
+        Some(String::from(".tmp_rs_vs_sh_absolute_paths")),
+        3,
+        // specifically crafted to check if sorting with LC_ALL=C is working
+        &["g", "h", "i"][..],
+        2,
+        &["r", "s"][..],
+        1,
+        false,
+    );
+
+    // rs implementation
+    // ------------------
+
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), false, false, false, false)
+        .expect("Can't create DirHash");
+
+    let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+    let rs_list_paths_str = rs_list_paths
+        .iter()
+        .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
+    assert!(dh.compute_hash().is_ok());
+
+    let rs_hash_str = hex::encode(dh.hash().unwrap());
+    let rs_hashtable_str = dh.hashtable().unwrap().to_string();
+
+    // sh implementation
+    // ------------------
+    let sh_list_paths_str = list_files_with_bash(dir.path(), true, false, false);
+
+    let (sh_hashtable_str, sh_hash_str) =
+        compute_recursive_hash_with_bash(dir.path(), true, false, false);
+
+    // Verification
+    // ------------
+    assert_eq!(sh_list_paths_str, rs_list_paths_str);
+    assert_eq!(sh_hash_str, rs_hash_str);
+    assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        rs_list_paths_str,
+        "/tmp/.tmp_rs_vs_sh_absolute_paths/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/1\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/2\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/g/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/g/1\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/g/r/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/g/s/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/h/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/h/1\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/h/r/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/h/s/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/i/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/i/1\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/i/r/0\n\
+         /tmp/.tmp_rs_vs_sh_absolute_paths/i/s/0"
+    );
+
+    // Hash of various empty files in tree structure:
+    //
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/2
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/r/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/s/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/r/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/s/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/1
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/r/0
+    // e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/s/0
+    //
+    // -> 1676e493a74be39ff70653b2fb206e6b5705a267fa81bb02b53604c631d45203
+    assert_eq!(
+        rs_hashtable_str,
+        "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/2\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/r/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/g/s/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/r/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/h/s/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/1\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/r/0\n\
+         e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  /tmp/.tmp_rs_vs_sh_absolute_paths/i/s/0\n"
+    );
+    assert_eq!(
+        rs_hash_str,
+        "1676e493a74be39ff70653b2fb206e6b5705a267fa81bb02b53604c631d45203"
+    );
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
 fn ignoring_invalid_files() {
     common::init_tracing();
 
@@ -128,6 +274,13 @@ fn ignoring_invalid_files() {
     assert!(ignored[3].0.ends_with("e/char_device_link"));
     assert_eq!(ignored[3].1, IgnoreReason::CharDevice);
 
+    let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+    let rs_list_paths_str = rs_list_paths
+        .iter()
+        .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     assert!(dh.compute_hash().is_ok());
 
     let rs_hash_str = hex::encode(dh.hash().unwrap());
@@ -135,13 +288,45 @@ fn ignoring_invalid_files() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), true, false);
+    let sh_list_paths_str = list_files_with_bash(dir.path(), false, true, false);
+
+    let (sh_hashtable_str, sh_hash_str) =
+        compute_recursive_hash_with_bash(dir.path(), false, true, false);
 
     // Verification
     // ------------
-
+    assert_eq!(sh_list_paths_str, rs_list_paths_str);
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        rs_list_paths_str,
+        "0\n\
+         1\n\
+         2\n\
+         d/0\n\
+         d/1\n\
+         d/r/0\n\
+         d/r/1\n\
+         d/r/2\n\
+         d/s/0\n\
+         d/s/1\n\
+         d/s/2\n\
+         d/t/0\n\
+         d/t/1\n\
+         d/t/2\n\
+         e/0\n\
+         e/1\n\
+         e/r/0\n\
+         e/r/1\n\
+         e/r/2\n\
+         e/s/0\n\
+         e/s/1\n\
+         e/s/2\n\
+         e/t/0\n\
+         e/t/1\n\
+         e/t/2"
+    );
 
     // Hash of various empty files in tree structure:
     //
@@ -226,6 +411,14 @@ fn following_symlinks() {
         .expect("Can't create DirHash");
 
     assert_eq!(dh.ignored().len(), 0);
+
+    let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+    let rs_list_paths_str = rs_list_paths
+        .iter()
+        .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     assert!(dh.compute_hash().is_ok());
 
     let rs_hash_str = hex::encode(dh.hash().unwrap());
@@ -233,13 +426,42 @@ fn following_symlinks() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), true, false);
+    let sh_list_paths_str = list_files_with_bash(dir.path(), false, true, false);
+
+    let (sh_hashtable_str, sh_hash_str) =
+        compute_recursive_hash_with_bash(dir.path(), false, true, false);
 
     // Verification
     // ------------
-
+    assert_eq!(sh_list_paths_str, rs_list_paths_str);
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        rs_list_paths_str,
+        "0\n\
+         1\n\
+         a/0\n\
+         a/1\n\
+         a/downwards_dirlink/0\n\
+         a/downwards_dirlink/1\n\
+         a/downwards_dirlink/upwards_dirlink/0\n\
+         a/downwards_dirlink/upwards_dirlink/1\n\
+         a/x/0\n\
+         a/x/1\n\
+         a/y/0\n\
+         a/y/1\n\
+         b/0\n\
+         b/1\n\
+         b/x/0\n\
+         b/x/1\n\
+         b/x/upwards_dirlink/0\n\
+         b/x/upwards_dirlink/1\n\
+         b/y/0\n\
+         b/y/1\n\
+         b/y/upwards_link\n\
+         downwards_link"
+    );
 
     assert_eq!(
         rs_hashtable_str,
@@ -307,6 +529,13 @@ fn not_following_symlinks() {
         ]
     );
 
+    let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+    let rs_list_paths_str = rs_list_paths
+        .iter()
+        .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     assert!(dh.compute_hash().is_ok());
 
     let rs_hash_str = hex::encode(dh.hash().unwrap());
@@ -314,13 +543,34 @@ fn not_following_symlinks() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
+    let sh_list_paths_str = list_files_with_bash(dir.path(), false, false, false);
+
+    let (sh_hashtable_str, sh_hash_str) =
+        compute_recursive_hash_with_bash(dir.path(), false, false, false);
 
     // Verification
     // ------------
-
+    assert_eq!(sh_list_paths_str, rs_list_paths_str);
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        rs_list_paths_str,
+        "0\n\
+         1\n\
+         a/0\n\
+         a/1\n\
+         a/x/0\n\
+         a/x/1\n\
+         a/y/0\n\
+         a/y/1\n\
+         b/0\n\
+         b/1\n\
+         b/x/0\n\
+         b/x/1\n\
+         b/y/0\n\
+         b/y/1"
+    );
 
     assert_eq!(
         rs_hashtable_str,
@@ -379,6 +629,14 @@ fn including_hidden_files() {
         .expect("Can't create DirHash");
 
     assert_eq!(dh.ignored().len(), 0);
+
+    let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+    let rs_list_paths_str = rs_list_paths
+        .iter()
+        .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     assert!(dh.compute_hash().is_ok());
 
     let rs_hash_str = hex::encode(dh.hash().unwrap());
@@ -386,13 +644,22 @@ fn including_hidden_files() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, true);
+    let sh_list_paths_str = list_files_with_bash(dir.path(), false, false, true);
+
+    let (sh_hashtable_str, sh_hash_str) =
+        compute_recursive_hash_with_bash(dir.path(), false, false, true);
 
     // Verification
     // ------------
-
+    assert_eq!(sh_list_paths_str, rs_list_paths_str);
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(
+        rs_list_paths_str,
+        ".hidden\n\
+         datafile"
+    );
 
     assert_eq!(
         rs_hashtable_str,
@@ -436,6 +703,14 @@ fn ignoring_hidden_files() {
         .expect("Can't create DirHash");
 
     assert_eq!(dh.ignored(), vec![(hidden_path, IgnoreReason::Hidden)]);
+
+    let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+    let rs_list_paths_str = rs_list_paths
+        .iter()
+        .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+        .collect::<Vec<_>>()
+        .join("\n");
+
     assert!(dh.compute_hash().is_ok());
 
     let rs_hash_str = hex::encode(dh.hash().unwrap());
@@ -443,13 +718,18 @@ fn ignoring_hidden_files() {
 
     // sh implementation
     // ------------------
-    let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
+    let sh_list_paths_str = list_files_with_bash(dir.path(), false, false, false);
+
+    let (sh_hashtable_str, sh_hash_str) =
+        compute_recursive_hash_with_bash(dir.path(), false, false, false);
 
     // Verification
     // ------------
-
+    assert_eq!(sh_list_paths_str, rs_list_paths_str);
     assert_eq!(sh_hash_str, rs_hash_str);
     assert_eq!(sh_hashtable_str, rs_hashtable_str);
+
+    assert_eq!(rs_list_paths_str, "datafile");
 
     assert_eq!(
         rs_hashtable_str,
@@ -490,6 +770,13 @@ fn comparing_rs_sh_with_random_data() {
             .with_files_from_dir(dir.path(), true, false, true, false)
             .expect("Can't create DirHash");
 
+        let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
+        let rs_list_paths_str = rs_list_paths
+            .iter()
+            .map(|p| p.to_str().expect("Listed path was not UTF-8"))
+            .collect::<Vec<_>>()
+            .join("\n");
+
         assert!(dh.compute_hash().is_ok());
 
         let rs_hash_str = hex::encode(dh.hash().unwrap());
@@ -497,10 +784,14 @@ fn comparing_rs_sh_with_random_data() {
 
         // sh implementation
         // ------------------
-        let (sh_hashtable_str, sh_hash_str) = compute_recursive_hash_with_bash(dir.path(), false, false);
+        let sh_list_paths_str = list_files_with_bash(dir.path(), false, false, false);
+
+        let (sh_hashtable_str, sh_hash_str) =
+            compute_recursive_hash_with_bash(dir.path(), false, false, false);
 
         // Verification
         // ------------
+        assert_eq!(sh_list_paths_str, rs_list_paths_str);
         assert_eq!(sh_hash_str, rs_hash_str);
         assert_eq!(sh_hashtable_str, rs_hashtable_str);
 
