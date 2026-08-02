@@ -53,11 +53,6 @@ struct FingerprintMetadata {
 struct DirhashCli {
     #[command(subcommand)]
     command: Commands,
-
-    // TODO: this doesn't do anything yet!
-    /// Run a shell-based implementation in parallel to double check the output
-    #[arg(short, long, global = true)]
-    paranoid: bool,
 }
 
 #[derive(Debug, Subcommand)]
@@ -125,7 +120,7 @@ fn main() {
             display_type,
         } => {
             let path = parse_user_path(&cwd, path);
-            list_files(path, display_type, walk, args.paranoid);
+            list_files(path, display_type, walk);
         }
         Commands::Analyze {
             path,
@@ -133,15 +128,15 @@ fn main() {
             fingerprint,
         } => {
             let path = parse_user_path(&cwd, path);
-            analyze_files(path, fingerprint, walk, args.paranoid);
+            analyze_files(path, fingerprint, walk);
         }
         Commands::Verify { fingerprint } => {
-            verify_files(fingerprint, args.paranoid);
+            verify_files(fingerprint);
         }
     }
 }
 
-fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bool) {
+fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions) {
     info!("Listing files:");
     debug!("Path: {:?}", path);
     debug!("Display file types: {:?}", display_type);
@@ -152,7 +147,6 @@ fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions, paranoid: bo
         "Ignore invalid filetypes: {:?}",
         walk.ignore_invalid_filetypes
     );
-    debug!("Paranoid mode: {:?}", paranoid);
 
     let dh = DirHash::new()
         .with_files_from_dir(
@@ -208,7 +202,7 @@ fn ignored_files_printout<T: PathHashProvider>(dh: &DirHash<T>, meta: &Fingerpri
     ignore_string
 }
 
-fn calculate_fingerprint(meta: FingerprintMetadata, paranoid: bool) -> String {
+fn calculate_fingerprint(meta: FingerprintMetadata) -> String {
     let mut fingerprint = String::new();
 
     let meta_serialized = serde_json::to_string_pretty(&meta).expect("Can't serialize metadata");
@@ -255,7 +249,6 @@ fn analyze_files(
     path: PathBuf,
     fingerprint_path: Option<PathBuf>,
     walk: WalkOptions,
-    paranoid: bool,
 ) {
     info!("Analyzing files:");
     debug!("Path: {:?}", path);
@@ -267,7 +260,6 @@ fn analyze_files(
         "Ignore invalid filetypes: {:?}",
         walk.ignore_invalid_filetypes
     );
-    debug!("Paranoid mode: {:?}", paranoid);
 
     let meta = FingerprintMetadata {
         version: 1,
@@ -275,7 +267,7 @@ fn analyze_files(
         walk: walk.clone(),
     };
 
-    let fingerprint = calculate_fingerprint(meta, paranoid);
+    let fingerprint = calculate_fingerprint(meta);
 
     print!("{}", fingerprint);
 
@@ -284,10 +276,9 @@ fn analyze_files(
     }
 }
 
-fn verify_files(fingerprint_path: PathBuf, paranoid: bool) {
+fn verify_files(fingerprint_path: PathBuf) {
     info!("Verifying files:");
     debug!("Fingerprint path: {:?}", fingerprint_path);
-    debug!("Paranoid mode: {:?}", paranoid);
 
     let filetype = fs::metadata(&fingerprint_path)
         .expect("Can't read metadata of fingerprint file")
@@ -329,7 +320,7 @@ fn verify_files(fingerprint_path: PathBuf, paranoid: bool) {
         panic!("Currently, only fingerprints with version \"1\" are supported!")
     }
 
-    let fingerprint = calculate_fingerprint(meta, paranoid);
+    let fingerprint = calculate_fingerprint(meta);
 
     print!("Calculated fingerprint:\n{}", fingerprint);
 
