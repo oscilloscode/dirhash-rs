@@ -1,5 +1,6 @@
 use std::fs;
 use std::io::Write;
+use std::process::Command;
 
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
@@ -285,6 +286,140 @@ Ignored files:
 ./d/s/fifo_link: FIFO
 ./e/char_device_link: CharDevice
 "#);
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn summary() {
+    let dir = common::creating_tempdir(
+        None,
+        2,
+        &["aa", "mm", "xx"][..],
+        4,
+        &["c", "w"][..],
+        1,
+        false,
+    );
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["summary", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r"Regular files: 20
+Hidden files: 0
+Symlinks: 0
+Block devices: 0
+Char devices: 0
+FIFOs: 0
+Sockets: 0
+");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn summary_with_hidden() {
+    let dir = common::creating_tempdir(
+        None,
+        2,
+        &["aa", "mm", "xx"][..],
+        4,
+        &["c", "w"][..],
+        1,
+        false,
+    );
+
+    std::fs::write(dir.path().join("aa/.hidden"), b"aa/.hidden").expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("mm/w/.hidden"), b"mm/w/.hidden").expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("xx/c/.hidden"), b"xx/c/.hidden").expect("Can't write to tempfile");
+
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["summary", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r"Regular files: 20
+Hidden files: 3
+Symlinks: 0
+Block devices: 0
+Char devices: 0
+FIFOs: 0
+Sockets: 0
+");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+pub fn summary_with_links() {
+    let dir = common::create_tempdir_with_links(None);
+
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["summary", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r"Regular files: 14
+Hidden files: 0
+Symlinks: 4
+Block devices: 0
+Char devices: 0
+FIFOs: 0
+Sockets: 0
+");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// TODO: Currently only FIFOs are used as proxy for all invalid file types. Creating block or char
+// devices with mknod would be possible, but is very dangerous. A real device needs to be specified
+// and could be accessed by the test or the code under test. The trick with symlinks to real
+// block/char devices can't be used as `follow_symlinks` is turned off so that links can get counted
+// as well.
+#[test]
+pub fn summary_with_invalid() {
+    let dir = common::creating_tempdir(
+        None,
+        3,
+        &["G", "R"][..],
+        4,
+        &["U", "B"][..],
+        4,
+        false,
+    );
+
+    let _ = Command::new("mkfifo").current_dir(&dir).arg("fifo").output().expect("Error while creating FIFO");
+    let _ = Command::new("mkfifo").current_dir(dir.path().join("G/B")).arg("another_fifo").output().expect("Error while creating FIFO");
+
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["summary", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r"Regular files: 27
+Hidden files: 0
+Symlinks: 0
+Block devices: 0
+Char devices: 0
+FIFOs: 2
+Sockets: 0
+");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+// Same reasoning for the invalid files as `summary_with_invalid`.
+#[test]
+pub fn summary_with_mixed() {
+    let dir = common::create_tempdir_with_links(None);
+
+    std::fs::write(dir.path().join(".hidden"), b".hidden").expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("a/.hidden"), b"a/.hidden").expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("a/y/.hidden"), b"a/y/.hidden").expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("b/x/.hidden"), b"b/x/.hidden").expect("Can't write to tempfile");
+
+    let _ = Command::new("mkfifo").current_dir(&dir).arg("fifo").output().expect("Error while creating FIFO");
+    let _ = Command::new("mkfifo").current_dir(dir.path().join("a")).arg("another_fifo").output().expect("Error while creating FIFO");
+
+    let mut cmd = cargo_bin_cmd!();
+    cmd.args(&["summary", dir.path().to_str().unwrap()]);
+    cmd.assert().success().stdout(r"Regular files: 14
+Hidden files: 4
+Symlinks: 4
+Block devices: 0
+Char devices: 0
+FIFOs: 2
+Sockets: 0
+");
 
     dir.close().expect("Can't close tempdir");
 }

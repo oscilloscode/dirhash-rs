@@ -14,7 +14,7 @@ use std::{
 };
 
 use clap::{Args, Parser, Subcommand};
-use dirhash_rs::{dirhash::DirHash, pathhash::PathHashProvider};
+use dirhash_rs::{dirhash::{DirHash, IgnoreReason}, pathhash::PathHashProvider};
 use pathdiff::diff_paths;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, info};
@@ -66,6 +66,11 @@ enum Commands {
         /// Display the type of the listed files
         #[arg(short = 't', long = "type")]
         display_type: bool,
+    },
+    /// Print the summary of all found file types
+    Summary {
+        /// Path to create summary for (default: cwd)
+        path: Option<PathBuf>,
     },
     /// Analyze the files recursively and create a fingerprint
     Analyze {
@@ -122,6 +127,10 @@ fn main() {
             let path = parse_user_path(&cwd, path);
             list_files(path, display_type, walk);
         }
+        Commands::Summary { path } => {
+            let path = parse_user_path(&cwd, path);
+            summary(path);
+        }
         Commands::Analyze {
             path,
             walk,
@@ -174,6 +183,31 @@ fn list_files(path: PathBuf, display_type: bool, walk: WalkOptions) {
         print!("{}", ignored_files_printout(&dh, &meta));
     }
 
+}
+
+fn summary(path: PathBuf) {
+    info!("Printing summary:");
+    debug!("Path: {:?}", path);
+
+    let dh = DirHash::new()
+        .with_files_from_dir(&path, false, false, false, true)
+        .expect("Can't create DirHash");
+
+    let regular_files = dh.list_paths().expect("Can't get the paths from the dirhash").len();
+    let hidden_files = dh.ignored().iter().filter(|f| f.1 == IgnoreReason::Hidden).count();
+    let symlinks = dh.ignored().iter().filter(|f| f.1 == IgnoreReason::Symlink).count();
+    let block_devs = dh.ignored().iter().filter(|f| f.1 == IgnoreReason::BlockDevice).count();
+    let char_devs = dh.ignored().iter().filter(|f| f.1 == IgnoreReason::CharDevice).count();
+    let fifos = dh.ignored().iter().filter(|f| f.1 == IgnoreReason::FIFO).count();
+    let sockets = dh.ignored().iter().filter(|f| f.1 == IgnoreReason::Socket).count();
+
+    println!("Regular files: {regular_files}");
+    println!("Hidden files: {hidden_files}");
+    println!("Symlinks: {symlinks}");
+    println!("Block devices: {block_devs}");
+    println!("Char devices: {char_devs}");
+    println!("FIFOs: {fifos}");
+    println!("Sockets: {sockets}");
 }
 
 fn ignored_files_printout<T: PathHashProvider>(dh: &DirHash<T>, meta: &FingerprintMetadata) -> String {
