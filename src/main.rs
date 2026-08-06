@@ -210,7 +210,7 @@ fn summary(path: PathBuf) {
     println!("Sockets: {sockets}");
 }
 
-fn ignored_files_printout<T: PathHashProvider>(dh: &DirHash<T>, meta: &FingerprintMetadata) -> String {
+fn ignored_files_printout<T: PathHashProvider + Send>(dh: &DirHash<T>, meta: &FingerprintMetadata) -> String {
     let mut ignore_string = String::new();
     writeln!(&mut ignore_string, "\nIgnored files:")
         .expect("Can't write ignored files header to string buffer");

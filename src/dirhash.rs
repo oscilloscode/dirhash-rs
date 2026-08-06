@@ -2,7 +2,9 @@
 
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
+use std::sync::Mutex;
 
+use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use tracing::{debug, error, info, warn};
 use walkdir::WalkDir;
@@ -33,7 +35,7 @@ pub struct DirHash<T> {
 
 impl<T> DirHash<T>
 where
-    T: PathHashProvider,
+    T: PathHashProvider + Send,
 {
     pub fn new() -> Self {
         DirHash {
@@ -71,9 +73,20 @@ where
         self.ignored.as_slice()
     }
 
-    /// Computes hash of all PathHashs.
-    ///
     pub fn compute_hash(&mut self) -> Result<()> {
+
+        #[cfg(feature = "serial")]
+        {self.compute_hash_serial()}
+
+        #[cfg(feature = "rayon1")]
+        {self.compute_hash_rayon1()}
+
+        #[cfg(feature = "rayon2")]
+        {self.compute_hash_rayon2()}
+    }
+
+    /// Computes hash of all PathHashs.
+    pub fn compute_hash_serial(&mut self) -> Result<()> {
         let mut ht = HashTable::new();
 
         for pb in &mut self.pathhashvec {
@@ -91,6 +104,71 @@ where
                     .expect("Can't create HashTableEntry"),
             );
         }
+
+        ht.sort();
+
+        let hash = Sha256::digest(ht.to_string());
+        self.hashtable = Some(ht);
+        self.hash = Some(hash.into());
+
+        Ok(())
+    }
+
+    // compute in parallel, collect, add serially
+    pub fn compute_hash_rayon1(&mut self) -> Result<()> {
+        let mut ht = HashTable::new();
+
+        let entries: Result<Vec<_>> = self.pathhashvec.par_iter_mut().map(|ph| -> Result<HashTableEntry>{
+
+            if ph.hash().is_none() {
+                ph.compute_hash()?;
+            }
+
+            let maybe_stripped_path = match &self.root {
+                Some(root) => Cow::from("./") + ph.path().strip_prefix(root)?.to_string_lossy(),
+                None => ph.path().to_string_lossy(),
+            };
+
+            Ok(
+                HashTableEntry::new(ph.hash().unwrap(), maybe_stripped_path)
+                    .expect("Can't create HashTableEntry")
+            )
+        }).collect();
+
+        for entry in entries? {
+            ht.add(entry);
+        }
+
+        ht.sort();
+
+        let hash = Sha256::digest(ht.to_string());
+        self.hashtable = Some(ht);
+        self.hash = Some(hash.into());
+
+        Ok(())
+    }
+
+    // protect hashtable with mutex
+    pub fn compute_hash_rayon2(&mut self) -> Result<()> {
+        let ht = Mutex::new(HashTable::new());
+
+        self.pathhashvec.par_iter_mut().try_for_each(|ph| -> Result<()> {
+
+            if ph.hash().is_none() {
+                ph.compute_hash()?;
+            }
+
+            let maybe_stripped_path = match &self.root {
+                Some(root) => Cow::from("./") + ph.path().strip_prefix(root)?.to_string_lossy(),
+                None => ph.path().to_string_lossy(),
+            };
+
+            let entry = HashTableEntry::new(ph.hash().unwrap(), maybe_stripped_path) .expect("Can't create HashTableEntry");
+            ht.lock().unwrap().add(entry);
+            Ok(())
+        })?;
+
+        let mut ht = ht.into_inner().unwrap();
 
         ht.sort();
 
