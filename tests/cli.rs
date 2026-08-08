@@ -5,7 +5,6 @@ use std::process::Command;
 use assert_cmd::cargo::cargo_bin_cmd;
 use predicates::prelude::*;
 
-use dirhash_rs::test_config;
 use tempfile::NamedTempFile;
 
 mod common;
