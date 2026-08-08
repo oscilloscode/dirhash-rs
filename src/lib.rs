@@ -6,6 +6,6 @@ pub mod hashtable;
 pub mod pathhash;
 pub mod bash;
 
-#[cfg(feature = "test-utils")]
+#[cfg(any(test, feature = "test-utils"))]
 pub mod test_config;
 
