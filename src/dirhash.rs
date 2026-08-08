@@ -74,15 +74,20 @@ where
     }
 
     pub fn compute_hash(&mut self) -> Result<()> {
-
         #[cfg(feature = "serial")]
-        {self.compute_hash_serial()}
+        {
+            self.compute_hash_serial()
+        }
 
         #[cfg(feature = "rayon1")]
-        {self.compute_hash_rayon1()}
+        {
+            self.compute_hash_rayon1()
+        }
 
         #[cfg(feature = "rayon2")]
-        {self.compute_hash_rayon2()}
+        {
+            self.compute_hash_rayon2()
+        }
     }
 
     /// Computes hash of all PathHashs.
@@ -118,22 +123,23 @@ where
     pub fn compute_hash_rayon1(&mut self) -> Result<()> {
         let mut ht = HashTable::new();
 
-        let entries: Result<Vec<_>> = self.pathhashvec.par_iter_mut().map(|ph| -> Result<HashTableEntry>{
+        let entries: Result<Vec<_>> = self
+            .pathhashvec
+            .par_iter_mut()
+            .map(|ph| -> Result<HashTableEntry> {
+                if ph.hash().is_none() {
+                    ph.compute_hash()?;
+                }
 
-            if ph.hash().is_none() {
-                ph.compute_hash()?;
-            }
+                let maybe_stripped_path = match &self.root {
+                    Some(root) => Cow::from("./") + ph.path().strip_prefix(root)?.to_string_lossy(),
+                    None => ph.path().to_string_lossy(),
+                };
 
-            let maybe_stripped_path = match &self.root {
-                Some(root) => Cow::from("./") + ph.path().strip_prefix(root)?.to_string_lossy(),
-                None => ph.path().to_string_lossy(),
-            };
-
-            Ok(
-                HashTableEntry::new(ph.hash().unwrap(), maybe_stripped_path)
-                    .expect("Can't create HashTableEntry")
-            )
-        }).collect();
+                Ok(HashTableEntry::new(ph.hash().unwrap(), maybe_stripped_path)
+                    .expect("Can't create HashTableEntry"))
+            })
+            .collect();
 
         for entry in entries? {
             ht.add(entry);
@@ -152,21 +158,23 @@ where
     pub fn compute_hash_rayon2(&mut self) -> Result<()> {
         let ht = Mutex::new(HashTable::new());
 
-        self.pathhashvec.par_iter_mut().try_for_each(|ph| -> Result<()> {
+        self.pathhashvec
+            .par_iter_mut()
+            .try_for_each(|ph| -> Result<()> {
+                if ph.hash().is_none() {
+                    ph.compute_hash()?;
+                }
 
-            if ph.hash().is_none() {
-                ph.compute_hash()?;
-            }
+                let maybe_stripped_path = match &self.root {
+                    Some(root) => Cow::from("./") + ph.path().strip_prefix(root)?.to_string_lossy(),
+                    None => ph.path().to_string_lossy(),
+                };
 
-            let maybe_stripped_path = match &self.root {
-                Some(root) => Cow::from("./") + ph.path().strip_prefix(root)?.to_string_lossy(),
-                None => ph.path().to_string_lossy(),
-            };
-
-            let entry = HashTableEntry::new(ph.hash().unwrap(), maybe_stripped_path) .expect("Can't create HashTableEntry");
-            ht.lock().unwrap().add(entry);
-            Ok(())
-        })?;
+                let entry = HashTableEntry::new(ph.hash().unwrap(), maybe_stripped_path)
+                    .expect("Can't create HashTableEntry");
+                ht.lock().unwrap().add(entry);
+                Ok(())
+            })?;
 
         let mut ht = ht.into_inner().unwrap();
 
@@ -184,9 +192,7 @@ where
 
         for ph in &self.pathhashvec {
             let maybe_stripped_path = match &self.root {
-                Some(root) => ph
-                    .path()
-                    .strip_prefix(root)?,
+                Some(root) => ph.path().strip_prefix(root)?,
                 None => ph.path(),
             };
 
@@ -547,7 +553,9 @@ mod tests {
             .with_files(spies)
             .with_root(Path::new("/pre/fix"));
 
-        let paths = dh.list_paths().expect("Can't get the paths from the dirhash");
+        let paths = dh
+            .list_paths()
+            .expect("Can't get the paths from the dirhash");
         assert_eq!(paths[0], "other/path");
         assert_eq!(paths[1], "some/path");
     }
@@ -560,7 +568,9 @@ mod tests {
         ];
         let dh = DirHash::new().with_files(spies);
 
-        let paths = dh.list_paths().expect("Can't get the paths from the dirhash");
+        let paths = dh
+            .list_paths()
+            .expect("Can't get the paths from the dirhash");
         assert_eq!(paths[0], "/pre/fix/other/path");
         assert_eq!(paths[1], "/pre/fix/some/path");
     }
@@ -583,7 +593,9 @@ mod tests {
     fn list_paths_no_files() {
         let dh: DirHash<PathHashSpy> = DirHash::new();
 
-        let paths = dh.list_paths().expect("Can't get the paths from the dirhash");
+        let paths = dh
+            .list_paths()
+            .expect("Can't get the paths from the dirhash");
         assert!(paths.is_empty());
     }
 }

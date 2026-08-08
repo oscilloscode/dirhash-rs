@@ -8,7 +8,7 @@ pub fn list_files_with_bash(
     absolute: bool,
     follow_links: bool,
     include_hidden_files: bool,
-)  -> String {
+) -> String {
     let mut cmd = Command::new("bash");
     cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
 
@@ -114,4 +114,4 @@ pub fn compute_recursive_hash_with_bash(
 // tests), but also against the expected values. Furthermore, testing the bash implemenations
 // requires temporary files/directories to be created, which is more an "integration-testing-thing".
 #[cfg(test)]
-mod tests { }
+mod tests {}
