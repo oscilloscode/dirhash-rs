@@ -1,5 +1,3 @@
-//! Test list:
-
 use std::borrow::Cow;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;

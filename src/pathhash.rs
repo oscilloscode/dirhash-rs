@@ -1,6 +1,3 @@
-//! Test list:
-//!
-
 use std::{
     fs, io,
     os::unix::fs::FileTypeExt,
