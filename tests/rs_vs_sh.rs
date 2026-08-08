@@ -5,7 +5,6 @@ use std::{
     fs::File, io::Write, time::Instant,
 };
 
-use assert_cmd::assert;
 use dirhash_rs::{bash::{compute_recursive_hash_with_bash, list_files_with_bash}, dirhash::{DirHash, IgnoreReason}};
 use dirhash_rs::test_config;
 use tempfile::tempdir;
