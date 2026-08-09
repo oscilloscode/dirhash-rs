@@ -1,6 +1,6 @@
 use dirhash_rs::pathhash::pathhashspy::PathHashSpy;
 use dirhash_rs::pathhash::PathHashProvider;
-use dirhash_rs::pathhashlist::PathHashList;
+use dirhash_rs::dirhash::DirHash;
 use std::io::Write as _;
 use std::path::Path;
 
@@ -54,7 +54,7 @@ mod compute_hash {
         // in the `assert_eq!()` down below.
         // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
 
-        let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
+        let mut pathhashlist = DirHash::new().with_files(spies);
 
         bencher.bench_local(|| pathhashlist.compute_hash());
 

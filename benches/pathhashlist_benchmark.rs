@@ -1,7 +1,7 @@
 use criterion::{criterion_group, criterion_main, Criterion};
 use dirhash_rs::pathhash::pathhashspy::PathHashSpy;
 use dirhash_rs::pathhash::PathHashProvider;
-use dirhash_rs::pathhashlist::PathHashList;
+use dirhash_rs::dirhash::DirHash;
 use std::io::Write as _;
 use std::path::Path;
 
@@ -48,12 +48,12 @@ pub fn compute_hash_benchmark(c: &mut Criterion) {
     // in the `assert_eq!()` down below.
     // write_spy_vec_to_file(&spies).expect("Error while writing spies vec");
 
-    let mut pathhashlist = PathHashList::new(spies, None).expect("Can't create PathHashList");
+    let mut dh = DirHash::new().with_files(spies);
 
     // assert!(pathhashlist.compute_hash().is_ok());
-    group.bench_function("compute_hash", |b| b.iter(|| pathhashlist.compute_hash()));
+    group.bench_function("compute_hash", |b| b.iter(|| dh.compute_hash()));
 
-    assert_eq!(pathhashlist.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
+    assert_eq!(dh.hash().unwrap(), b"\x1b\x80\xeb\xca\x22\x1d\xc9\xc8\x6e\xc4\x73\x30\x01\x33\xf9\x17\xfb\x01\xe9\x9d\xbc\xa8\xcb\xae\xe6\x2e\xce\x1d\x54\x96\xbf\xf2");
 }
 
 criterion_group!(benches, compute_hash_benchmark);
