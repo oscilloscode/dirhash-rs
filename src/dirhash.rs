@@ -72,7 +72,7 @@ where
     }
 
     pub fn compute_hash(&mut self) -> Result<()> {
-        #[cfg(feature = "serial")]
+        #[cfg(not(any(feature = "rayon1", feature = "rayon2")))]
         {
             self.compute_hash_serial()
         }
