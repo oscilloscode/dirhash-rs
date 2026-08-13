@@ -51,7 +51,7 @@ struct FingerprintMetadata {
 
 #[derive(Debug, Parser)]
 #[command(name = "DirHash")]
-#[command(version = "0.1")]
+#[command(version)]
 #[command(about = "Compute a fingerprint over all files in a directory recursively", long_about = None)]
 struct DirhashCli {
     #[command(subcommand)]
