@@ -4,12 +4,7 @@ version = "0.1.0"
 edition = "2021"
 
 [[bench]]
-name = "pathhashlist_benchmark"
-harness = false
-required-features = ["test-utils"]
-
-[[bench]]
-name = "pathhashlist_divan"
+name = "dirhash_compute_hash"
 harness = false
 required-features = ["test-utils"]
 
