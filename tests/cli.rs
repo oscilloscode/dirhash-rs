@@ -39,7 +39,8 @@ pub fn list() {
     );
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"0
+    cmd.assert().success().stdout(
+        r#"0
 1
 2
 3
@@ -64,7 +65,8 @@ c/s/0
 c/s/1
 c/t/0
 c/t/1
-"#);
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -84,7 +86,8 @@ pub fn list_absolute_flag() {
     // Relative paths
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"0
+    cmd.assert().success().stdout(
+        r#"0
 1
 d/0
 d/x/0
@@ -92,12 +95,14 @@ d/y/0
 e/0
 e/x/0
 e/y/0
-"#);
+"#,
+    );
 
     // Abolute paths
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap(), "-a"]);
-    cmd.assert().success().stdout(r#"/tmp/.tmp_cli_list_absolute_flag/0
+    cmd.assert().success().stdout(
+        r#"/tmp/.tmp_cli_list_absolute_flag/0
 /tmp/.tmp_cli_list_absolute_flag/1
 /tmp/.tmp_cli_list_absolute_flag/d/0
 /tmp/.tmp_cli_list_absolute_flag/d/x/0
@@ -105,7 +110,8 @@ e/y/0
 /tmp/.tmp_cli_list_absolute_flag/e/0
 /tmp/.tmp_cli_list_absolute_flag/e/x/0
 /tmp/.tmp_cli_list_absolute_flag/e/y/0
-"#);
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -113,11 +119,11 @@ e/y/0
 #[test]
 pub fn list_hidden_flag() {
     let dir = tempfile::Builder::new()
-            // .keep(true)
-            .rand_bytes(0)
-            .prefix(".tmp_cli_list_hidden_flag")
-            .tempdir()
-            .expect("Can't create tempdir");
+        // .keep(true)
+        .rand_bytes(0)
+        .prefix(".tmp_cli_list_hidden_flag")
+        .tempdir()
+        .expect("Can't create tempdir");
 
     let datafile_path = dir.path().join("datafile");
     std::fs::write(datafile_path, b"data").expect("Can't write to tempfile");
@@ -128,11 +134,13 @@ pub fn list_hidden_flag() {
     // Ignoring hidden files
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"datafile
+    cmd.assert().success().stdout(
+        r#"datafile
 
 Ignored files:
 ./.hidden: Hidden
-"#);
+"#,
+    );
 
     // Including hidden files
     let mut cmd = cargo_bin_cmd!();
@@ -149,7 +157,8 @@ pub fn list_symlink_flag() {
     // Not following symlinks and ignoring them
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"0
+    cmd.assert().success().stdout(
+        r#"0
 1
 a/0
 a/1
@@ -169,12 +178,14 @@ Ignored files:
 ./b/x/upwards_dirlink: Symlink
 ./b/y/upwards_link: Symlink
 ./downwards_link: Symlink
-"#);
+"#,
+    );
 
     // Following symlinks
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap(), "-L"]);
-    cmd.assert().success().stdout(r#"0
+    cmd.assert().success().stdout(
+        r#"0
 1
 a/0
 a/1
@@ -196,20 +207,23 @@ b/y/0
 b/y/1
 b/y/upwards_link
 downwards_link
-"#);
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
 
 #[test]
 pub fn list_invalid_flag() {
-
-    let dir = common::create_tempdir_with_links_to_invalid(Some(String::from(".tmp_cli_list_invalid_flag")));
+    let dir = common::create_tempdir_with_links_to_invalid(Some(String::from(
+        ".tmp_cli_list_invalid_flag",
+    )));
 
     // Not following symlinks, and thus no invalid files encountered
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"0
+    cmd.assert().success().stdout(
+        r#"0
 1
 2
 d/0
@@ -240,20 +254,21 @@ Ignored files:
 ./d/r/socket_link: Symlink
 ./d/s/fifo_link: Symlink
 ./e/char_device_link: Symlink
-"#);
+"#,
+    );
 
     // Following symlinks -> invalid files found -> panic
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap(), "-L"]);
     cmd.assert().failure().stdout("").stderr(
-        predicates::str::contains("panicked")
-            .and(predicates::str::contains("InvalidFileType"))
+        predicates::str::contains("panicked").and(predicates::str::contains("InvalidFileType")),
     );
 
     // Following symlinks -> invalid files found, but ignored
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["list", dir.path().to_str().unwrap(), "-LI"]);
-    cmd.assert().success().stdout(r#"0
+    cmd.assert().success().stdout(
+        r#"0
 1
 2
 d/0
@@ -284,7 +299,8 @@ Ignored files:
 ./d/r/socket_link: Socket
 ./d/s/fifo_link: FIFO
 ./e/char_device_link: CharDevice
-"#);
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -302,14 +318,16 @@ pub fn summary() {
     );
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r"Regular files: 20
+    cmd.assert().success().stdout(
+        r"Regular files: 20
 Hidden files: 0
 Symlinks: 0
 Block devices: 0
 Char devices: 0
 FIFOs: 0
 Sockets: 0
-");
+",
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -327,19 +345,23 @@ pub fn summary_with_hidden() {
     );
 
     std::fs::write(dir.path().join("aa/.hidden"), b"aa/.hidden").expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("mm/w/.hidden"), b"mm/w/.hidden").expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("xx/c/.hidden"), b"xx/c/.hidden").expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("mm/w/.hidden"), b"mm/w/.hidden")
+        .expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("xx/c/.hidden"), b"xx/c/.hidden")
+        .expect("Can't write to tempfile");
 
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r"Regular files: 20
+    cmd.assert().success().stdout(
+        r"Regular files: 20
 Hidden files: 3
 Symlinks: 0
 Block devices: 0
 Char devices: 0
 FIFOs: 0
 Sockets: 0
-");
+",
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -350,14 +372,16 @@ pub fn summary_with_links() {
 
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r"Regular files: 14
+    cmd.assert().success().stdout(
+        r"Regular files: 14
 Hidden files: 0
 Symlinks: 4
 Block devices: 0
 Char devices: 0
 FIFOs: 0
 Sockets: 0
-");
+",
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -369,29 +393,31 @@ Sockets: 0
 // as well.
 #[test]
 pub fn summary_with_invalid() {
-    let dir = common::creating_tempdir(
-        None,
-        3,
-        &["G", "R"][..],
-        4,
-        &["U", "B"][..],
-        4,
-        false,
-    );
+    let dir = common::creating_tempdir(None, 3, &["G", "R"][..], 4, &["U", "B"][..], 4, false);
 
-    let _ = Command::new("mkfifo").current_dir(&dir).arg("fifo").output().expect("Error while creating FIFO");
-    let _ = Command::new("mkfifo").current_dir(dir.path().join("G/B")).arg("another_fifo").output().expect("Error while creating FIFO");
+    let _ = Command::new("mkfifo")
+        .current_dir(&dir)
+        .arg("fifo")
+        .output()
+        .expect("Error while creating FIFO");
+    let _ = Command::new("mkfifo")
+        .current_dir(dir.path().join("G/B"))
+        .arg("another_fifo")
+        .output()
+        .expect("Error while creating FIFO");
 
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r"Regular files: 27
+    cmd.assert().success().stdout(
+        r"Regular files: 27
 Hidden files: 0
 Symlinks: 0
 Block devices: 0
 Char devices: 0
 FIFOs: 2
 Sockets: 0
-");
+",
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -403,22 +429,34 @@ pub fn summary_with_mixed() {
 
     std::fs::write(dir.path().join(".hidden"), b".hidden").expect("Can't write to tempfile");
     std::fs::write(dir.path().join("a/.hidden"), b"a/.hidden").expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("a/y/.hidden"), b"a/y/.hidden").expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("b/x/.hidden"), b"b/x/.hidden").expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("a/y/.hidden"), b"a/y/.hidden")
+        .expect("Can't write to tempfile");
+    std::fs::write(dir.path().join("b/x/.hidden"), b"b/x/.hidden")
+        .expect("Can't write to tempfile");
 
-    let _ = Command::new("mkfifo").current_dir(&dir).arg("fifo").output().expect("Error while creating FIFO");
-    let _ = Command::new("mkfifo").current_dir(dir.path().join("a")).arg("another_fifo").output().expect("Error while creating FIFO");
+    let _ = Command::new("mkfifo")
+        .current_dir(&dir)
+        .arg("fifo")
+        .output()
+        .expect("Error while creating FIFO");
+    let _ = Command::new("mkfifo")
+        .current_dir(dir.path().join("a"))
+        .arg("another_fifo")
+        .output()
+        .expect("Error while creating FIFO");
 
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r"Regular files: 14
+    cmd.assert().success().stdout(
+        r"Regular files: 14
 Hidden files: 4
 Symlinks: 4
 Block devices: 0
 Char devices: 0
 FIFOs: 2
 Sockets: 0
-");
+",
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -436,7 +474,8 @@ pub fn analyze() {
     );
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"# {
+    cmd.assert().success().stdout(
+        r#"# {
 #   "version": 1,
 #   "path": "/tmp/.tmp_cli_analyze",
 #   "absolute": false,
@@ -463,7 +502,8 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/h/1
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/h/2
 
 a9cb27164c9537cadde55e6d31fabd0a4befbf1b558d2e236476f7e40a215f6c
-"#);
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -483,7 +523,8 @@ pub fn analyze_absolute_flag() {
     // Relative paths
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"# {
+    cmd.assert().success().stdout(
+        r#"# {
 #   "version": 1,
 #   "path": "/tmp/.tmp_cli_analyze_absolute_flag",
 #   "absolute": false,
@@ -503,7 +544,8 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./c/e/0
 e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./c/e/1
 
 7c877196d585f1aaeecc234b88e38fcce3a9575468797db690be51a02f4bbfc2
-"#);
+"#,
+    );
 
     // Absolute paths
     let mut cmd = cargo_bin_cmd!();
@@ -536,11 +578,11 @@ f1d0290ddb06f66dadc8fb37c467cc7e2a121b6681207bccbabae69d2fdca986
 #[test]
 pub fn analyze_hidden_flag() {
     let dir = tempfile::Builder::new()
-            // .keep(true)
-            .rand_bytes(0)
-            .prefix(".tmp_cli_analyze_hidden_flag")
-            .tempdir()
-            .expect("Can't create tempdir");
+        // .keep(true)
+        .rand_bytes(0)
+        .prefix(".tmp_cli_analyze_hidden_flag")
+        .tempdir()
+        .expect("Can't create tempdir");
 
     let datafile_path = dir.path().join("datafile");
     std::fs::write(datafile_path, b"data").expect("Can't write to tempfile");
@@ -551,7 +593,8 @@ pub fn analyze_hidden_flag() {
     // Ignoring hidden files
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"# {
+    cmd.assert().success().stdout(
+        r#"# {
 #   "version": 1,
 #   "path": "/tmp/.tmp_cli_analyze_hidden_flag",
 #   "absolute": false,
@@ -566,12 +609,14 @@ pub fn analyze_hidden_flag() {
 
 Ignored files:
 ./.hidden: Hidden
-"#);
+"#,
+    );
 
     // Including hidden files
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-H"]);
-    cmd.assert().success().stdout(r#"# {
+    cmd.assert().success().stdout(
+        r#"# {
 #   "version": 1,
 #   "path": "/tmp/.tmp_cli_analyze_hidden_flag",
 #   "absolute": false,
@@ -584,19 +629,22 @@ Ignored files:
 e564b4081d7a9ea4b00dada53bdae70c99b87b6fce869f0c3dd4d2bfa1e53e1c  ./.hidden
 
 342783ce4b379555a17df24f20188be18f439674a5aa790357106eafc77f91c4
-"#);
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
 
 #[test]
 pub fn analyze_symlink_flag() {
-    let dir = common::create_tempdir_with_links(Some(String::from(".tmp_cli_analyze_symlink_flag")));
+    let dir =
+        common::create_tempdir_with_links(Some(String::from(".tmp_cli_analyze_symlink_flag")));
 
     // Not following symlinks and ignoring them
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"# {
+    cmd.assert().success().stdout(
+        r#"# {
 #   "version": 1,
 #   "path": "/tmp/.tmp_cli_analyze_symlink_flag",
 #   "absolute": false,
@@ -627,7 +675,8 @@ Ignored files:
 ./b/x/upwards_dirlink: Symlink
 ./b/y/upwards_link: Symlink
 ./downwards_link: Symlink
-"#);
+"#,
+    );
 
     // Following symlinks
     let mut cmd = cargo_bin_cmd!();
@@ -672,13 +721,15 @@ a9ae7427d5341a8dfe933b118fb440d69b630f45d290930af2ea9d2a93316a6b
 
 #[test]
 pub fn analyze_invalid_flag() {
-
-    let dir = common::create_tempdir_with_links_to_invalid(Some(String::from(".tmp_cli_analyze_invalid_flag")));
+    let dir = common::create_tempdir_with_links_to_invalid(Some(String::from(
+        ".tmp_cli_analyze_invalid_flag",
+    )));
 
     // Not following symlinks, and thus no invalid files encountered
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
-    cmd.assert().success().stdout(r#"# {
+    cmd.assert().success().stdout(
+        r#"# {
 #   "version": 1,
 #   "path": "/tmp/.tmp_cli_analyze_invalid_flag",
 #   "absolute": false,
@@ -720,20 +771,21 @@ Ignored files:
 ./d/r/socket_link: Symlink
 ./d/s/fifo_link: Symlink
 ./e/char_device_link: Symlink
-"#);
+"#,
+    );
 
     // Following symlinks -> invalid files found -> panic
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-L"]);
     cmd.assert().failure().stdout("").stderr(
-        predicates::str::contains("panicked")
-            .and(predicates::str::contains("InvalidFileType"))
+        predicates::str::contains("panicked").and(predicates::str::contains("InvalidFileType")),
     );
 
     // Following symlinks -> invalid files found, but ignored
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-LI"]);
-    cmd.assert().success().stdout(r#"# {
+    cmd.assert().success().stdout(
+        r#"# {
 #   "version": 1,
 #   "path": "/tmp/.tmp_cli_analyze_invalid_flag",
 #   "absolute": false,
@@ -775,7 +827,8 @@ Ignored files:
 ./d/r/socket_link: Socket
 ./d/s/fifo_link: FIFO
 ./e/char_device_link: CharDevice
-"#);
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -845,7 +898,12 @@ ec776c447825f880e04c010393c19179b5c472fe32682a941194d1c93a895c6a
     let mut cmd = cargo_bin_cmd!();
     let fingerprint_path = dir.path().join("finger");
     assert!(!fingerprint_path.exists());
-    cmd.args(&["analyze", dir.path().to_str().unwrap(), "-f", fingerprint_path.to_str().unwrap()]);
+    cmd.args(&[
+        "analyze",
+        dir.path().to_str().unwrap(),
+        "-f",
+        fingerprint_path.to_str().unwrap(),
+    ]);
     cmd.assert().success().stdout(expected_output_first_run);
 
     assert!(fingerprint_path.exists());
@@ -856,7 +914,12 @@ ec776c447825f880e04c010393c19179b5c472fe32682a941194d1c93a895c6a
     let mut cmd = cargo_bin_cmd!();
     let fingerprint_path = dir.path().join("finger2");
     assert!(!fingerprint_path.exists());
-    cmd.args(&["analyze", dir.path().to_str().unwrap(), "-f", fingerprint_path.to_str().unwrap()]);
+    cmd.args(&[
+        "analyze",
+        dir.path().to_str().unwrap(),
+        "-f",
+        fingerprint_path.to_str().unwrap(),
+    ]);
     cmd.assert().success().stdout(expected_output_second_run);
 
     assert!(fingerprint_path.exists());
@@ -878,7 +941,8 @@ pub fn verify() {
         false,
     );
 
-    let mut fingerprint_file = NamedTempFile::new().expect("Can't create temporary fingerprint file");
+    let mut fingerprint_file =
+        NamedTempFile::new().expect("Can't create temporary fingerprint file");
 
     let finger_content = r#"# {
 #   "version": 1,
@@ -910,7 +974,8 @@ d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
 
 #[test]
 pub fn verify_bad_version() {
-    let mut fingerprint_file = NamedTempFile::new().expect("Can't create temporary fingerprint file");
+    let mut fingerprint_file =
+        NamedTempFile::new().expect("Can't create temporary fingerprint file");
 
     let finger_content = r#"# {
 #   "version": 2,
@@ -935,15 +1000,20 @@ d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
 
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
-    cmd.assert().failure().stdout("").stderr(
-        predicates::str::contains("panicked")
-            .and(predicates::str::contains("Currently, only fingerprints with version \"1\" are supported!"))
-    );
+    cmd.assert()
+        .failure()
+        .stdout("")
+        .stderr(
+            predicates::str::contains("panicked").and(predicates::str::contains(
+                "Currently, only fingerprints with version \"1\" are supported!",
+            )),
+        );
 }
 
 #[test]
 pub fn verify_path_doesnt_exist() {
-    let mut fingerprint_file = NamedTempFile::new().expect("Can't create temporary fingerprint file");
+    let mut fingerprint_file =
+        NamedTempFile::new().expect("Can't create temporary fingerprint file");
 
     let finger_content = r#"# {
 #   "version": 1,
@@ -968,8 +1038,12 @@ d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
 
     let mut cmd = cargo_bin_cmd!();
     cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
-    cmd.assert().failure().stdout("").stderr(
-        predicates::str::contains("panicked")
-            .and(predicates::str::contains("code: 2, kind: NotFound, message: \"No such file or directory\""))
-    );
+    cmd.assert()
+        .failure()
+        .stdout("")
+        .stderr(
+            predicates::str::contains("panicked").and(predicates::str::contains(
+                "code: 2, kind: NotFound, message: \"No such file or directory\"",
+            )),
+        );
 }

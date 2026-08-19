@@ -1,7 +1,10 @@
 #![allow(dead_code)]
 
 use std::{
-    fs::{self, File}, io::Write, os::unix::{self, fs::FileTypeExt}, path::Path,
+    fs::{self, File},
+    io::Write,
+    os::unix::{self, fs::FileTypeExt},
+    path::Path,
 };
 use tempfile::TempDir;
 

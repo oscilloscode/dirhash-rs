@@ -1,17 +1,17 @@
 //! Things to check:
 //! - Compare outputs from rs/sh with random data
 
-use std::{
-    fs::File, io::Write, time::Instant,
-};
+use std::{fs::File, io::Write, time::Instant};
 
-use dirhash_rs::{bash::{compute_recursive_hash_with_bash, list_files_with_bash}, dirhash::{DirHash, IgnoreReason}};
 use dirhash_rs::test_config;
+use dirhash_rs::{
+    bash::{compute_recursive_hash_with_bash, list_files_with_bash},
+    dirhash::{DirHash, IgnoreReason},
+};
 use tempfile::tempdir;
 use tracing::info;
 
 mod common;
-
 
 #[test]
 fn with_empty_files_and_check_lc_all_ordering() {
@@ -358,7 +358,6 @@ fn ignoring_invalid_files() {
     // -> 4778b420c8834f6e833db5be5ecab1864f2d3740b576f790fe7376fe43ab096d
     assert_eq!(
         rs_hashtable_str,
-
         "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./0\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./1\n\
          e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./2\n\
@@ -666,7 +665,10 @@ fn including_hidden_files() {
          916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
     );
 
-    assert_eq!(rs_hash_str, "a45543dc9c0e28cf4ebf10e9527a0da06f8f377e382a2972989ab666b1236428");
+    assert_eq!(
+        rs_hash_str,
+        "a45543dc9c0e28cf4ebf10e9527a0da06f8f377e382a2972989ab666b1236428"
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -735,7 +737,10 @@ fn ignoring_hidden_files() {
         "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
     );
 
-    assert_eq!(rs_hash_str, "0e5b096d507d3febf13cf27b361e0b4c647b08430e2245ebbfa186067217a8f9");
+    assert_eq!(
+        rs_hash_str,
+        "0e5b096d507d3febf13cf27b361e0b4c647b08430e2245ebbfa186067217a8f9"
+    );
 
     dir.close().expect("Can't close tempdir");
 }
