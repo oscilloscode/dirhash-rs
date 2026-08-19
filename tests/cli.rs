@@ -11,13 +11,13 @@ mod common;
 
 #[test]
 pub fn missing_cmd() {
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.assert().failure();
 }
 
 #[test]
 pub fn help() {
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.arg("-h");
     cmd.assert().success().stdout(
         predicates::str::contains("Usage")
@@ -37,7 +37,7 @@ pub fn list() {
         2,
         false,
     );
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"0
@@ -84,7 +84,7 @@ pub fn list_absolute_flag() {
     );
 
     // Relative paths
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"0
@@ -99,7 +99,7 @@ e/y/0
     );
 
     // Abolute paths
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap(), "-a"]);
     cmd.assert().success().stdout(
         r#"/tmp/.tmp_cli_list_absolute_flag/0
@@ -132,7 +132,7 @@ pub fn list_hidden_flag() {
     std::fs::write(hidden_path, b"hidden").expect("Can't write to tempfile");
 
     // Ignoring hidden files
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"datafile
@@ -143,7 +143,7 @@ Ignored files:
     );
 
     // Including hidden files
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap(), "-H"]);
     cmd.assert().success().stdout(".hidden\ndatafile\n");
 
@@ -155,7 +155,7 @@ pub fn list_symlink_flag() {
     let dir = common::create_tempdir_with_links(Some(String::from(".tmp_cli_list_symlink_flag")));
 
     // Not following symlinks and ignoring them
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"0
@@ -182,7 +182,7 @@ Ignored files:
     );
 
     // Following symlinks
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap(), "-L"]);
     cmd.assert().success().stdout(
         r#"0
@@ -220,7 +220,7 @@ pub fn list_invalid_flag() {
     )));
 
     // Not following symlinks, and thus no invalid files encountered
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"0
@@ -258,14 +258,14 @@ Ignored files:
     );
 
     // Following symlinks -> invalid files found -> panic
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap(), "-L"]);
     cmd.assert().failure().stdout("").stderr(
         predicates::str::contains("panicked").and(predicates::str::contains("InvalidFileType")),
     );
 
     // Following symlinks -> invalid files found, but ignored
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap(), "-LI"]);
     cmd.assert().success().stdout(
         r#"0
@@ -316,7 +316,7 @@ pub fn summary() {
         1,
         false,
     );
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 20
@@ -350,7 +350,7 @@ pub fn summary_with_hidden() {
     std::fs::write(dir.path().join("xx/c/.hidden"), b"xx/c/.hidden")
         .expect("Can't write to tempfile");
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 20
@@ -370,7 +370,7 @@ Sockets: 0
 pub fn summary_with_links() {
     let dir = common::create_tempdir_with_links(None);
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 14
@@ -406,7 +406,7 @@ pub fn summary_with_invalid() {
         .output()
         .expect("Error while creating FIFO");
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 27
@@ -445,7 +445,7 @@ pub fn summary_with_mixed() {
         .output()
         .expect("Error while creating FIFO");
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 14
@@ -472,7 +472,7 @@ pub fn analyze() {
         3,
         false,
     );
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"# {
@@ -521,7 +521,7 @@ pub fn analyze_absolute_flag() {
     );
 
     // Relative paths
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"# {
@@ -548,7 +548,7 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./c/e/1
     );
 
     // Absolute paths
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-a"]);
     cmd.assert().success().stdout(r#"# {
 #   "version": 1,
@@ -591,7 +591,7 @@ pub fn analyze_hidden_flag() {
     std::fs::write(hidden_path, b"hidden").expect("Can't write to tempfile");
 
     // Ignoring hidden files
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"# {
@@ -613,7 +613,7 @@ Ignored files:
     );
 
     // Including hidden files
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-H"]);
     cmd.assert().success().stdout(
         r#"# {
@@ -641,7 +641,7 @@ pub fn analyze_symlink_flag() {
         common::create_tempdir_with_links(Some(String::from(".tmp_cli_analyze_symlink_flag")));
 
     // Not following symlinks and ignoring them
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"# {
@@ -679,7 +679,7 @@ Ignored files:
     );
 
     // Following symlinks
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-L"]);
     cmd.assert().success().stdout(r#"# {
 #   "version": 1,
@@ -726,7 +726,7 @@ pub fn analyze_invalid_flag() {
     )));
 
     // Not following symlinks, and thus no invalid files encountered
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r#"# {
@@ -775,14 +775,14 @@ Ignored files:
     );
 
     // Following symlinks -> invalid files found -> panic
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-L"]);
     cmd.assert().failure().stdout("").stderr(
         predicates::str::contains("panicked").and(predicates::str::contains("InvalidFileType")),
     );
 
     // Following symlinks -> invalid files found, but ignored
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["analyze", dir.path().to_str().unwrap(), "-LI"]);
     cmd.assert().success().stdout(
         r#"# {
@@ -895,7 +895,7 @@ ec776c447825f880e04c010393c19179b5c472fe32682a941194d1c93a895c6a
     );
 
     // first run (only "normal" temp files)
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     let fingerprint_path = dir.path().join("finger");
     assert!(!fingerprint_path.exists());
     cmd.args(&[
@@ -911,7 +911,7 @@ ec776c447825f880e04c010393c19179b5c472fe32682a941194d1c93a895c6a
     assert_eq!(finger_content, expected_output_first_run);
 
     // second run (now including fingerprint file from first run)
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     let fingerprint_path = dir.path().join("finger2");
     assert!(!fingerprint_path.exists());
     cmd.args(&[
@@ -965,7 +965,7 @@ d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
 
     write!(fingerprint_file, "{}", finger_content).unwrap();
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
     cmd.assert().success();
 
@@ -998,7 +998,7 @@ d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
 
     write!(fingerprint_file, "{}", finger_content).unwrap();
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
     cmd.assert()
         .failure()
@@ -1036,7 +1036,7 @@ d54869b935d36b0260556f9d283c92c32d2b44ccba9c0c5f6a7bf69183650b4e
 
     write!(fingerprint_file, "{}", finger_content).unwrap();
 
-    let mut cmd = cargo_bin_cmd!();
+    let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["verify", fingerprint_file.path().to_str().unwrap()]);
     cmd.assert()
         .failure()
