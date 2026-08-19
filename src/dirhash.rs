@@ -56,7 +56,7 @@ where
     }
 
     pub fn root(&self) -> Option<&Path> {
-        self.root.as_ref().map(|p| p.as_path())
+        self.root.as_deref()
     }
 
     pub fn hash(&self) -> Option<&[u8; 32]> {

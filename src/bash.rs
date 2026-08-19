@@ -10,7 +10,7 @@ pub fn list_files_with_bash(
     include_hidden_files: bool,
 ) -> String {
     let mut cmd = Command::new("bash");
-    cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
+    cmd.current_dir(dir).env("LC_ALL", "C").arg("-c");
 
     let mut fd_args = String::new();
 
@@ -53,7 +53,7 @@ pub fn compute_recursive_hash_with_bash(
     include_hidden_files: bool,
 ) -> (String, String) {
     let mut cmd = Command::new("bash");
-    cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
+    cmd.current_dir(dir).env("LC_ALL", "C").arg("-c");
 
     let mut fd_args = String::new();
 
@@ -86,7 +86,7 @@ pub fn compute_recursive_hash_with_bash(
     //
     // TODO: "echo" the previous output into sha256sum to remove recalculation
     let mut cmd = Command::new("bash");
-    cmd.current_dir(&dir).env("LC_ALL", "C").arg("-c");
+    cmd.current_dir(dir).env("LC_ALL", "C").arg("-c");
 
     cmd.arg(format!(
         "fd {} -t f --exec sha256sum | sort | sha256sum",

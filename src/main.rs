@@ -257,9 +257,9 @@ fn ignored_files_printout<T: PathHashProvider + Send>(
 
         let ignored_path = relative_path.as_deref().unwrap_or(ignored_path.as_path());
 
-        write!(
+        writeln!(
             &mut ignore_string,
-            "{}: {:?}\n",
+            "{}: {:?}",
             ignored_path.display(),
             reason
         )
@@ -299,7 +299,7 @@ fn calculate_fingerprint(meta: FingerprintMetadata) -> String {
     write!(
         &mut fingerprint,
         "{}\n{}\n",
-        dh.hashtable().expect("Can't get hashtable").to_string(),
+        dh.hashtable().expect("Can't get hashtable"),
         hex::encode(dh.hash().expect("Can't get hash string"))
     )
     .expect("Can't write fingerprint to string buffer");
