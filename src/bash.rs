@@ -30,7 +30,7 @@ pub fn list_files_with_bash(
         fd_args.push_str("--hidden ");
     }
 
-    cmd.arg(format!("fd {} -t f | sort", fd_args));
+    cmd.arg(format!("fd {} -t f '.' | sort", fd_args));
 
     info!("Cmd: {:?}", cmd);
 
@@ -73,7 +73,7 @@ pub fn compute_recursive_hash_with_bash(
         fd_args.push_str("--hidden ");
     }
 
-    cmd.arg(format!("fd {} -t f --exec sha256sum | sort", fd_args));
+    cmd.arg(format!("fd {} -t f '.' --exec sha256sum | sort", fd_args));
 
     info!("Cmd: {:?}", cmd);
 
@@ -89,7 +89,7 @@ pub fn compute_recursive_hash_with_bash(
     cmd.current_dir(dir).env("LC_ALL", "C").arg("-c");
 
     cmd.arg(format!(
-        "fd {} -t f --exec sha256sum | sort | sha256sum",
+        "fd {} -t f '.' --exec sha256sum | sort | sha256sum",
         fd_args
     ));
 
