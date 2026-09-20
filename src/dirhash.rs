@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use tracing::{debug, error, info, warn};
-use walkdir::WalkDir;
+use walkdir::{WalkDir, DirEntry};
 
 use crate::error::{DirHashError, InvalidFileTypeKind, Result};
 use crate::hashtable::{HashTable, HashTableEntry};
@@ -203,6 +203,10 @@ where
     }
 }
 
+fn skip_entry(entry: &DirEntry, &mut ignored: Vec<_>) -> bool {
+    false
+}
+
 impl DirHash<PathHash> {
     // This is not as nice as the builder-lite pattern used when adding the files without WalkDir.
     // How can the builder-lite pattern be applied here as well? Maybe a specific WalkDir type is
@@ -218,7 +222,7 @@ impl DirHash<PathHash> {
     ) -> Result<Self> {
         let mut files: Vec<PathHash> = vec![];
 
-        for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
+        for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter().filter_entry(|e| !skip_entry(e)) {
             let entry = entry?;
             info!("{:?}", entry);
 
@@ -247,6 +251,10 @@ impl DirHash<PathHash> {
                 continue;
             }
 
+            // Hidden directories are not skipped -> different behavior to bash impl
+            // try:
+            // https://rust-lang-nursery.github.io/rust-cookbook/file/dir.html#traverse-directories-while-skipping-dotfiles
+            // https://docs.rs/walkdir/latest/walkdir/struct.IntoIter.html#method.filter_entry
             if (!include_hidden_files)
                 && entry
                     .path()

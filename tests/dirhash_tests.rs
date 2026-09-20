@@ -194,6 +194,91 @@ fn with_files_from_dir_ignore_hidden_files() {
 }
 
 #[test]
+fn with_files_from_dir_include_hidden_folder() {
+    common::init_tracing();
+    let dir = tempdir().expect("Can't create tempdir");
+    // let dir = tempfile::Builder::new()
+    //     .keep(true)
+    //     .tempdir()
+    //     .expect("Can't create tempdir");
+
+    let datafile_path = dir.path().join("datafile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_dir_path = dir.path().join(".hidden_dir");
+    std::fs::create_dir(&hidden_dir_path)
+        .expect(&format!("Error while creating directory {:?}", hidden_dir_path));
+
+    let file_in_hidden_dir_path = hidden_dir_path.join("normal");
+    let mut file = File::create(&file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    // Hidden files shall be included by default when with_files_from_dir is refactored to builder
+    // pattern
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false, true, false)
+        .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored().len(), 0);
+    assert!(dh.compute_hash().is_ok());
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./.hidden_dir/normal\n\
+         916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
+    );
+
+    assert_eq!(dh.hash().unwrap(), b"\x5c\x37\x65\x1d\x64\xc7\xd4\xeb\xe1\x8e\x01\x02\x56\xfc\x8a\xdc\xe8\xbe\xe3\xe7\xf3\x75\x63\x03\xdd\x2d\x74\x83\xea\x30\x69\xcc");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
+fn with_files_from_dir_ignore_hidden_folder() {
+    common::init_tracing();
+    let dir = tempdir().expect("Can't create tempdir");
+    // let dir = tempfile::Builder::new()
+    //     .keep(true)
+    //     .tempdir()
+    //     .expect("Can't create tempdir");
+
+    let datafile_path = dir.path().join("datafile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_dir_path = dir.path().join(".hidden_dir");
+    std::fs::create_dir(&hidden_dir_path)
+        .expect(&format!("Error while creating directory {:?}", hidden_dir_path));
+
+    let file_in_hidden_dir_path = hidden_dir_path.join("normal");
+    let mut file = File::create(&file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    // Hidden files shall be included by default when with_files_from_dir is refactored to builder
+    // pattern
+    let mut dh = DirHash::new()
+        .with_files_from_dir(dir.path(), true, false, false, false)
+        .expect("Can't create DirHash");
+
+    assert_eq!(dh.ignored().len(), 0);
+    assert!(dh.compute_hash().is_ok());
+
+    assert_eq!(
+        dh.hashtable().unwrap().to_string(),
+        "916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
+    );
+
+    assert_eq!(dh.hash().unwrap(), b"\x0e\x5b\x09\x6d\x50\x7d\x3f\xeb\xf1\x3c\xf2\x7b\x36\x1e\x0b\x4c\x64\x7b\x08\x43\x0e\x22\x45\xeb\xbf\xa1\x86\x06\x72\x17\xa8\xf9");
+
+    dir.close().expect("Can't close tempdir");
+}
+
+#[test]
 fn with_file_from_dir_no_root_empty_files() {
     common::init_tracing();
     let dir = common::creating_tempdir(
