@@ -619,6 +619,15 @@ fn including_hidden_files() {
 
     write!(&mut file, "{}", "hidden test data").expect("Can't write to tempfile");
 
+    let hidden_dir_path = dir.path().join(".hidden_dir");
+    std::fs::create_dir(&hidden_dir_path)
+        .expect(&format!("Error while creating directory {:?}", hidden_dir_path));
+
+    let file_in_hidden_dir_path = hidden_dir_path.join("normal");
+    let mut file = File::create(&file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+
+    write!(&mut file, "{}", "normal file in hidden dir").expect("Can't write to tempfile");
+
     // rs implementation
     // ------------------
 
@@ -656,18 +665,20 @@ fn including_hidden_files() {
     assert_eq!(
         rs_list_paths_str,
         ".hidden\n\
+         .hidden_dir/normal\n\
          datafile"
     );
 
     assert_eq!(
         rs_hashtable_str,
         "2a5fe7861edde7d25b095fb793743c343ee075069cf0c66db8a2587dc84a0710  ./.hidden\n\
+         2f8ff4b095561f6c0174224dd50dc2daf4657761fc52bfc53c02f7f27101954c  ./.hidden_dir/normal\n\
          916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./datafile\n"
     );
 
     assert_eq!(
         rs_hash_str,
-        "a45543dc9c0e28cf4ebf10e9527a0da06f8f377e382a2972989ab666b1236428"
+        "f223fdbc6ad2de51d54076fa948dd43152dadb2deea88518dc82f6e7d4fe7b71"
     );
 
     dir.close().expect("Can't close tempdir");
@@ -696,6 +707,15 @@ fn ignoring_hidden_files() {
 
     write!(&mut file, "{}", "hidden test data").expect("Can't write to tempfile");
 
+    let hidden_dir_path = dir.path().join(".hidden_dir");
+    std::fs::create_dir(&hidden_dir_path)
+        .expect(&format!("Error while creating hidden directory {:?}", hidden_dir_path));
+
+    let file_in_hidden_dir_path = hidden_dir_path.join("normal");
+    let mut file = File::create(&file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+
+    write!(&mut file, "{}", "normal file in hidden dir").expect("Can't write to tempfile");
+
     // rs implementation
     // ------------------
 
@@ -703,7 +723,7 @@ fn ignoring_hidden_files() {
         .with_files_from_dir(dir.path(), true, false, false, false)
         .expect("Can't create DirHash");
 
-    assert_eq!(dh.ignored(), vec![(hidden_path, IgnoreReason::Hidden)]);
+    assert_eq!(dh.ignored(), vec![(hidden_path, IgnoreReason::Hidden), (hidden_dir_path, IgnoreReason::Hidden)]);
 
     let rs_list_paths = dh.list_paths().expect("Can't list files with dirhash");
     let rs_list_paths_str = rs_list_paths

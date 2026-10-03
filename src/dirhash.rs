@@ -5,7 +5,7 @@ use std::sync::Mutex;
 use rayon::prelude::*;
 use sha2::{Digest, Sha256};
 use tracing::{debug, error, info, warn};
-use walkdir::WalkDir;
+use walkdir::{WalkDir, DirEntry};
 
 use crate::error::{DirHashError, InvalidFileTypeKind, Result};
 use crate::hashtable::{HashTable, HashTableEntry};
@@ -203,6 +203,24 @@ where
     }
 }
 
+fn is_hidden(entry: &DirEntry, ignored: &mut Vec<(PathBuf, IgnoreReason)>, include_hidden_files: bool) -> bool {
+    if include_hidden_files {
+        return false;
+    }
+
+    let hidden = entry.file_name()
+         .to_str()
+         .map(|s| s.starts_with("."))
+         .unwrap_or(false);
+
+    debug!("entry: {:?}, hidden: {}", entry, hidden);
+
+    if hidden {
+        ignored.push((entry.path().to_owned(), IgnoreReason::Hidden));
+    }
+    hidden
+}
+
 impl DirHash<PathHash> {
     // This is not as nice as the builder-lite pattern used when adding the files without WalkDir.
     // How can the builder-lite pattern be applied here as well? Maybe a specific WalkDir type is
@@ -218,7 +236,11 @@ impl DirHash<PathHash> {
     ) -> Result<Self> {
         let mut files: Vec<PathHash> = vec![];
 
-        for entry in WalkDir::new(path).follow_links(follow_symlinks).into_iter() {
+        let mut ignored_hidden = vec![];
+
+        // :TODO: add filter_entry dynamically depending on include_hidden_files instead of passing
+        // as param?
+        for entry in WalkDir::new(path).min_depth(1).follow_links(follow_symlinks).into_iter().filter_entry(|e| !is_hidden(e, &mut ignored_hidden, include_hidden_files)) {
             let entry = entry?;
             info!("{:?}", entry);
 
@@ -244,21 +266,6 @@ impl DirHash<PathHash> {
                 debug!("Symlink -> skip");
                 self.ignored
                     .push((entry.path().to_owned(), IgnoreReason::Symlink));
-                continue;
-            }
-
-            if (!include_hidden_files)
-                && entry
-                    .path()
-                    .file_name()
-                    .unwrap()
-                    .to_str()
-                    .unwrap()
-                    .starts_with(".")
-            {
-                debug!("Hidden file -> skip");
-                self.ignored
-                    .push((entry.path().to_owned(), IgnoreReason::Hidden));
                 continue;
             }
 
@@ -303,6 +310,7 @@ impl DirHash<PathHash> {
             self.root = Some(path.to_owned());
         }
 
+        self.ignored.append(&mut ignored_hidden);
         self.ignored.sort();
 
         self.pathhashvec = files;
