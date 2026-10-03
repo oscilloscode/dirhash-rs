@@ -231,7 +231,7 @@ fn summary(path: PathBuf) {
         .count();
 
     println!("Regular files: {regular_files}");
-    println!("Hidden files: {hidden_files}");
+    println!("Hidden files/folders: {hidden_files}");
     println!("Symlinks: {symlinks}");
     println!("Block devices: {block_devs}");
     println!("Char devices: {char_devs}");
@@ -244,7 +244,7 @@ fn ignored_files_printout<T: PathHashProvider + Send>(
     meta: &FingerprintMetadata,
 ) -> String {
     let mut ignore_string = String::new();
-    writeln!(&mut ignore_string, "\nIgnored files:")
+    writeln!(&mut ignore_string, "\nIgnored files/folders:")
         .expect("Can't write ignored files header to string buffer");
 
     for (ignored_path, reason) in dh.ignored() {

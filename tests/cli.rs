@@ -152,7 +152,7 @@ pub fn list_hidden_flag() {
     cmd.assert().success().stdout(
         r#"datafile
 
-Ignored files:
+Ignored files/folders:
 ./.hidden: Hidden
 ./.hidden_dir: Hidden
 "#,
@@ -195,7 +195,7 @@ b/x/1
 b/y/0
 b/y/1
 
-Ignored files:
+Ignored files/folders:
 ./a/downwards_dirlink: Symlink
 ./b/x/upwards_dirlink: Symlink
 ./b/y/upwards_link: Symlink
@@ -271,7 +271,7 @@ e/t/0
 e/t/1
 e/t/2
 
-Ignored files:
+Ignored files/folders:
 ./block_device_link: Symlink
 ./d/r/socket_link: Symlink
 ./d/s/fifo_link: Symlink
@@ -316,7 +316,7 @@ e/t/0
 e/t/1
 e/t/2
 
-Ignored files:
+Ignored files/folders:
 ./block_device_link: BlockDevice
 ./d/r/socket_link: Socket
 ./d/s/fifo_link: FIFO
@@ -342,7 +342,7 @@ pub fn summary() {
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 20
-Hidden files: 0
+Hidden files/folders: 0
 Symlinks: 0
 Block devices: 0
 Char devices: 0
@@ -376,7 +376,7 @@ pub fn summary_with_hidden() {
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 17
-Hidden files: 5
+Hidden files/folders: 5
 Symlinks: 0
 Block devices: 0
 Char devices: 0
@@ -396,7 +396,7 @@ pub fn summary_with_links() {
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 14
-Hidden files: 0
+Hidden files/folders: 0
 Symlinks: 4
 Block devices: 0
 Char devices: 0
@@ -432,7 +432,7 @@ pub fn summary_with_invalid() {
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 27
-Hidden files: 0
+Hidden files/folders: 0
 Symlinks: 0
 Block devices: 0
 Char devices: 0
@@ -471,7 +471,7 @@ pub fn summary_with_mixed() {
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
         r"Regular files: 14
-Hidden files: 4
+Hidden files/folders: 4
 Symlinks: 4
 Block devices: 0
 Char devices: 0
@@ -643,7 +643,7 @@ pub fn analyze_hidden_flag() {
 
 f6c98e2939052cf27765385e9a18fe4b01e2305a0c89ec394d2059423f0323f4
 
-Ignored files:
+Ignored files/folders:
 ./.hidden: Hidden
 ./.hidden_dir: Hidden
 "#,
@@ -709,7 +709,7 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./b/y/1
 
 86d6b064dcf498615435a879221a1a2d76b969dc67cbd3c8fd7f35f767cb8e10
 
-Ignored files:
+Ignored files/folders:
 ./a/downwards_dirlink: Symlink
 ./b/x/upwards_dirlink: Symlink
 ./b/y/upwards_link: Symlink
@@ -805,7 +805,7 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/2
 
 4778b420c8834f6e833db5be5ecab1864f2d3740b576f790fe7376fe43ab096d
 
-Ignored files:
+Ignored files/folders:
 ./block_device_link: Symlink
 ./d/r/socket_link: Symlink
 ./d/s/fifo_link: Symlink
@@ -861,7 +861,7 @@ e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855  ./e/t/2
 
 4778b420c8834f6e833db5be5ecab1864f2d3740b576f790fe7376fe43ab096d
 
-Ignored files:
+Ignored files/folders:
 ./block_device_link: BlockDevice
 ./d/r/socket_link: Socket
 ./d/s/fifo_link: FIFO
