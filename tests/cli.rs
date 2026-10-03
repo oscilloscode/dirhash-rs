@@ -1,4 +1,4 @@
-use std::fs;
+use std::{fs, fs::File};
 use std::io::Write;
 use std::process::Command;
 
@@ -125,11 +125,26 @@ pub fn list_hidden_flag() {
         .tempdir()
         .expect("Can't create tempdir");
 
+
     let datafile_path = dir.path().join("datafile");
-    std::fs::write(datafile_path, b"data").expect("Can't write to tempfile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
 
     let hidden_path = dir.path().join(".hidden");
-    std::fs::write(hidden_path, b"hidden").expect("Can't write to tempfile");
+    fs::write(hidden_path, b"hidden").expect("Can't write to tempfile");
+    write!(&mut file, "{}", "hidden data").expect("Can't write to tempfile");
+
+    let hidden_dir_path = dir.path().join(".hidden_dir");
+    fs::create_dir(&hidden_dir_path)
+        .expect(&format!("Error while creating directory {:?}", hidden_dir_path));
+
+    let file_in_hidden_dir_path = hidden_dir_path.join("normal");
+    let mut file = File::create(&file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_file_in_hidden_dir_path = hidden_dir_path.join(".nested_hidden");
+    let mut file = File::create(&hidden_file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
 
     // Ignoring hidden files
     let mut cmd = cargo_bin_cmd!("dirhash");
@@ -139,13 +154,20 @@ pub fn list_hidden_flag() {
 
 Ignored files:
 ./.hidden: Hidden
+./.hidden_dir: Hidden
 "#,
     );
 
     // Including hidden files
     let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["list", dir.path().to_str().unwrap(), "-H"]);
-    cmd.assert().success().stdout(".hidden\ndatafile\n");
+    cmd.assert().success().stdout(
+        r#".hidden
+.hidden_dir/.nested_hidden
+.hidden_dir/normal
+datafile
+"#,
+    );
 
     dir.close().expect("Can't close tempdir");
 }
@@ -339,22 +361,22 @@ pub fn summary_with_hidden() {
         2,
         &["aa", "mm", "xx"][..],
         4,
-        &["c", "w"][..],
+        &[".c", "w"][..],
         1,
         false,
     );
 
-    std::fs::write(dir.path().join("aa/.hidden"), b"aa/.hidden").expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("mm/w/.hidden"), b"mm/w/.hidden")
+    fs::write(dir.path().join("aa/.hidden"), b"aa/.hidden").expect("Can't write to tempfile");
+    fs::write(dir.path().join("mm/w/.hidden"), b"mm/w/.hidden")
         .expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("xx/c/.hidden"), b"xx/c/.hidden")
+    fs::write(dir.path().join("xx/.c/.hidden"), b"xx/c/.hidden")
         .expect("Can't write to tempfile");
 
     let mut cmd = cargo_bin_cmd!("dirhash");
     cmd.args(&["summary", dir.path().to_str().unwrap()]);
     cmd.assert().success().stdout(
-        r"Regular files: 20
-Hidden files: 3
+        r"Regular files: 17
+Hidden files: 5
 Symlinks: 0
 Block devices: 0
 Char devices: 0
@@ -427,11 +449,11 @@ Sockets: 0
 pub fn summary_with_mixed() {
     let dir = common::create_tempdir_with_links(None);
 
-    std::fs::write(dir.path().join(".hidden"), b".hidden").expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("a/.hidden"), b"a/.hidden").expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("a/y/.hidden"), b"a/y/.hidden")
+    fs::write(dir.path().join(".hidden"), b".hidden").expect("Can't write to tempfile");
+    fs::write(dir.path().join("a/.hidden"), b"a/.hidden").expect("Can't write to tempfile");
+    fs::write(dir.path().join("a/y/.hidden"), b"a/y/.hidden")
         .expect("Can't write to tempfile");
-    std::fs::write(dir.path().join("b/x/.hidden"), b"b/x/.hidden")
+    fs::write(dir.path().join("b/x/.hidden"), b"b/x/.hidden")
         .expect("Can't write to tempfile");
 
     let _ = Command::new("mkfifo")
@@ -585,10 +607,24 @@ pub fn analyze_hidden_flag() {
         .expect("Can't create tempdir");
 
     let datafile_path = dir.path().join("datafile");
-    std::fs::write(datafile_path, b"data").expect("Can't write to tempfile");
+    let mut file = File::create(&datafile_path).expect("Error while creating file");
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
 
     let hidden_path = dir.path().join(".hidden");
-    std::fs::write(hidden_path, b"hidden").expect("Can't write to tempfile");
+    fs::write(hidden_path, b"hidden").expect("Can't write to tempfile");
+    write!(&mut file, "{}", "hidden data").expect("Can't write to tempfile");
+
+    let hidden_dir_path = dir.path().join(".hidden_dir");
+    fs::create_dir(&hidden_dir_path)
+        .expect(&format!("Error while creating directory {:?}", hidden_dir_path));
+
+    let file_in_hidden_dir_path = hidden_dir_path.join("normal");
+    let mut file = File::create(&file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
+
+    let hidden_file_in_hidden_dir_path = hidden_dir_path.join(".nested_hidden");
+    let mut file = File::create(&hidden_file_in_hidden_dir_path).expect("Error while creating normal file in hidden dir");
+    write!(&mut file, "{}", "test data").expect("Can't write to tempfile");
 
     // Ignoring hidden files
     let mut cmd = cargo_bin_cmd!("dirhash");
@@ -603,12 +639,13 @@ pub fn analyze_hidden_flag() {
 #   "ignore_invalid_filetypes": false
 # }
 
-3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7  ./datafile
+59e42f450cef4b9d09cf3e71973f70acac1649745846f2d36e51bbff08f8a37b  ./datafile
 
-86d88597af112e3e996b83a609e2c925c9ab66e961a8d41d0e4bb1eec868a448
+f6c98e2939052cf27765385e9a18fe4b01e2305a0c89ec394d2059423f0323f4
 
 Ignored files:
 ./.hidden: Hidden
+./.hidden_dir: Hidden
 "#,
     );
 
@@ -625,10 +662,12 @@ Ignored files:
 #   "ignore_invalid_filetypes": false
 # }
 
-3a6eb0790f39ac87c94f3856b2dd2c5d110e6811602261a9a923d3bb23adc8b7  ./datafile
+59e42f450cef4b9d09cf3e71973f70acac1649745846f2d36e51bbff08f8a37b  ./datafile
+916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./.hidden_dir/.nested_hidden
+916f0027a575074ce72a331777c3478d6513f786a591bd892da1a577bf2335f9  ./.hidden_dir/normal
 e564b4081d7a9ea4b00dada53bdae70c99b87b6fce869f0c3dd4d2bfa1e53e1c  ./.hidden
 
-342783ce4b379555a17df24f20188be18f439674a5aa790357106eafc77f91c4
+1d90ae51ddcc7fb69d802ccd40dbdeeaf8358a583da36012ef0ec7ae32c54c99
 "#,
     );
 
